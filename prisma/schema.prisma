@@ -1,0 +1,3850 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Core Entities
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("user") // user, admin, manager
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // SaaS Fields
+  tenantId  String?
+  subscriptionTier String @default("free") // free, basic, pro, enterprise
+  subscriptionStatus String @default("active") // active, cancelled, expired
+  subscriptionEndsAt DateTime?
+  isTenantAdmin Boolean @default(false)
+
+  // Relations
+  salesOrders       SalesOrder[]
+  purchaseOrders    PurchaseOrder[]
+  projects          Project[]
+  timeEntries       TimeEntry[]
+  subscriptions     Subscription[]
+  leads             Lead[]
+  opportunities     Opportunity[]
+  assignedActivities Activity[]
+  assignedTasks     Task[]
+  employees         Employee[]
+  performanceReviews PerformanceReview[]
+  leaveRequests     LeaveRequest[]
+  qualityInspections QualityInspection[]
+  nonConformances   NonConformance[]
+  correctiveActions CorrectiveAction[]
+  qualityAudits     QualityAudit[]
+  
+  // DMS Relations
+  uploadedDocuments Document[] @relation("DocumentUploader")
+  approvedDocuments Document[] @relation("DocumentApprover")
+  createdDocumentVersions DocumentVersion[] @relation("DocumentVersionCreator")
+  assignedApprovalWorkflows DocumentApprovalWorkflow[] @relation("DocumentApprovalAssignee")
+  documentPermissionAssignments DocumentPermission[] @relation("DocumentPermissionUser")
+  
+  // BI Relations
+  createdReports Report[] @relation("ReportCreator")
+  createdDashboards Dashboard[] @relation("DashboardCreator")
+  createdKPIs KPI[] @relation("KPICreator")
+  
+  // Tax & Regulatory Compliance Relations
+  auditLogs AuditLog[]
+  approvalRequests ApprovalRequest[]
+  approvalStages ApprovalStage[]
+  
+  // AI & ML Relations
+  aiConversations AIConversation[]
+  
+  // GRC Relations
+  ownedRisks GRCRisk[]
+  assignedRiskMitigations GRCRiskMitigation[]
+  riskAssessments GRCRiskAssessment[]
+  ownedPolicies GRCPolicy[]
+  policyApprovals GRCPolicyApproval[]
+  policyDistributions GRCPolicyDistribution[]
+  leadAudits GRCAudit[]
+  auditTeamMemberships GRCAuditTeamMember[]
+  assignedAuditFindings GRCAuditFinding[]
+  committeeMemberships GRCCommitteeMember[]
+  committeeMeetingAttendances GRCCommitteeMeetingAttendee[]
+  committeeChairpersonships GRCCommittee[]
+  complianceAssessments GRCComplianceAssessment[]
+  
+  // R&D Relations
+  createdRDProjects RDProject[]
+  rdTeamMemberships RDTeamMember[]
+  rdTeamLeaderships RDTeam[]
+  createdRDIntellectualProperty RDIntellectualProperty[]
+  createdRDInnovations RDInnovation[]
+  createdRDPublications RDPublication[]
+  createdRDCollaborations RDCollaboration[]
+  
+  // SaaS Relations
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+  createdTenants Tenant[] @relation("TenantCreator")
+  adminOfTenants Tenant[] @relation("TenantAdmin")
+  subscriptionPayments SubscriptionPayment[]
+  
+  @@map("users")
+}
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  domain      String?
+  logo        String?
+  settings    String?  // JSON settings
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Fields
+  plan        String   @default("free") // free, basic, pro, enterprise
+  status      String   @default("active") // active, suspended, cancelled
+  maxUsers    Int      @default(5)
+  maxStorage  Int      @default(1024) // MB
+  features    String?  // JSON array of enabled features
+  trialEndsAt DateTime?
+  
+  // Relations
+  adminId     String?
+  admin       User?    @relation("TenantAdmin", fields: [adminId], references: [id])
+  creatorId   String?
+  creator     User?    @relation("TenantCreator", fields: [creatorId], references: [id])
+  users       User[]
+  companies   Company[]
+  subscriptionPayments SubscriptionPayment[]
+  chartOfAccounts ChartOfAccounts[]
+  journals    Journal[]
+  transactions Transaction[]
+  customers   Customer[]
+  products    Product[]
+  warehouses  Warehouse[]
+  
+  // Tax & Regulatory Compliance Relations
+  taxJurisdictions TaxJurisdiction[]
+  
+  @@map("tenants")
+}
+
+model SubscriptionPlan {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  interval    String   @default("monthly") // monthly, yearly
+  features    String?  // JSON array of features
+  maxUsers    Int      @default(5)
+  maxStorage  Int      @default(1024) // MB
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  subscriptionPayments SubscriptionPayment[]
+  
+  @@map("subscription_plans")
+}
+
+model SubscriptionPayment {
+  id          String   @id @default(cuid())
+  userId      String
+  tenantId    String
+  planId      String
+  amount      Float
+  currency    String   @default("USD")
+  status      String   @default("pending") // pending, completed, failed, refunded
+  paymentMethod String? // stripe, paypal, etc.
+  paymentId   String?  // External payment processor ID
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  plan        SubscriptionPlan @relation(fields: [planId], references: [id])
+  
+  @@map("subscription_payments")
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  taxId       String?
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Field
+  tenantId    String
+
+  // Relations
+  customers   Customer[]
+  suppliers   Supplier[]
+  warehouses  Warehouse[]
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("companies")
+}
+
+// Financial Accounting
+model ChartOfAccounts {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  type        String   // asset, liability, equity, revenue, expense
+  parentId    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Field
+  tenantId    String
+
+  parent      ChartOfAccounts? @relation("ChartOfAccountsHierarchy", fields: [parentId], references: [id])
+  children    ChartOfAccounts[] @relation("ChartOfAccountsHierarchy")
+  
+  // Relations
+  accountTransactions AccountTransaction[]
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("chart_of_accounts")
+}
+
+model Journal {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  type        String   // sales, purchase, general, cash
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Field
+  tenantId    String
+
+  // Relations
+  transactions Transaction[]
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("journals")
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  reference   String   @unique
+  date        DateTime
+  description String?
+  journalId   String
+  status      String   @default("draft") // draft, posted, cancelled
+  totalDebit  Float
+  totalCredit Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Field
+  tenantId    String
+
+  journal     Journal @relation(fields: [journalId], references: [id])
+  
+  // Relations
+  accountTransactions AccountTransaction[]
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("transactions")
+}
+
+model AccountTransaction {
+  id            String   @id @default(cuid())
+  accountId     String
+  transactionId String
+  description   String?
+  debit         Float    @default(0)
+  credit        Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  account       ChartOfAccounts @relation(fields: [accountId], references: [id])
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  
+  // Relations
+  analyticLines AnalyticLine[]
+  
+  @@map("account_transactions")
+}
+
+// Sales Module
+model Customer {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  email       String?
+  phone       String?
+  address     String?
+  taxId       String?
+  companyId   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Field
+  tenantId    String
+
+  company     Company? @relation(fields: [companyId], references: [id])
+  
+  // Relations
+  quotes      Quote[]
+  salesOrders SalesOrder[]
+  invoices    Invoice[]
+  contacts    Contact[]
+  subscriptions Subscription[]
+  projects    Project[]
+  opportunities Opportunity[]
+  ecommerceCustomers EcommerceCustomer[]
+  
+  // CSM Relations
+  healthScores CustomerHealthScore[]
+  onboardingProgress OnboardingProgress[]
+  renewals    Renewal[]
+  feedback    CustomerFeedback[]
+  playbookExecutions PlaybookExecution[]
+  
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("customers")
+}
+
+model Quote {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  customerId  String
+  date        DateTime
+  expiryDate  DateTime
+  status      String   @default("draft") // draft, sent, accepted, rejected, expired
+  subtotal    Float
+  tax         Float
+  total       Float
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  // Relations
+  quoteItems  QuoteItem[]
+  salesOrders SalesOrder[]
+  
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String   @id @default(cuid())
+  quoteId     String
+  productId   String?
+  description String
+  quantity    Float
+  unitPrice   Float
+  taxRate     Float    @default(0)
+  subtotal    Float
+  tax         Float
+  total       Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quote       Quote @relation(fields: [quoteId], references: [id])
+  product     Product? @relation(fields: [productId], references: [id])
+  
+  @@map("quote_items")
+}
+
+model SalesOrder {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  customerId  String
+  quoteId     String?
+  date        DateTime
+  status      String   @default("draft") // draft, confirmed, processing, shipped, delivered, cancelled
+  subtotal    Float
+  tax         Float
+  total       Float
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+  quote       Quote? @relation(fields: [quoteId], references: [id])
+  createdBy   User? @relation(fields: [createdById], references: [id])
+  
+  // Relations
+  salesOrderItems SalesOrderItem[]
+  invoices       Invoice[]
+  shipments      Shipment[]
+  ecommerceOrders EcommerceOrder[]
+  
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id            String   @id @default(cuid())
+  salesOrderId  String
+  productId     String?
+  description   String
+  quantity      Float
+  unitPrice     Float
+  taxRate       Float    @default(0)
+  subtotal      Float
+  tax           Float
+  total         Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  salesOrder    SalesOrder @relation(fields: [salesOrderId], references: [id])
+  product       Product? @relation(fields: [productId], references: [id])
+  
+  @@map("sales_order_items")
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  customerId  String
+  salesOrderId String?
+  date        DateTime
+  dueDate     DateTime
+  status      String   @default("draft") // draft, sent, paid, overdue, cancelled
+  subtotal    Float
+  tax         Float
+  total       Float
+  paidAmount  Float    @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+  salesOrder  SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  
+  // Relations
+  invoiceItems InvoiceItem[]
+  payments     Payment[]
+  subscriptionInvoices SubscriptionInvoice[]
+  
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  productId   String?
+  description String
+  quantity    Float
+  unitPrice   Float
+  taxRate     Float    @default(0)
+  subtotal    Float
+  tax         Float
+  total       Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+  product     Product? @relation(fields: [productId], references: [id])
+  
+  @@map("invoice_items")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  reference   String   @unique
+  invoiceId   String
+  date        DateTime
+  amount      Float
+  method      String   // cash, bank, credit_card, etc.
+  status      String   @default("pending") // pending, completed, failed
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+  
+  @@map("payments")
+}
+
+// Inventory & Stock
+model Product {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  category    String?
+  unit        String   @default("pcs")
+  purchasePrice Float
+  salePrice   Float
+  taxRate     Float    @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Field
+  tenantId    String
+
+  // Relations
+  quoteItems      QuoteItem[]
+  salesOrderItems SalesOrderItem[]
+  invoiceItems    InvoiceItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  stockMovements  StockMovement[]
+  billOfMaterialItems BillOfMaterialItem[]
+  workOrderItems  WorkOrderItem[]
+  rfqItems        RFQItem[]
+  billOfMaterials BillOfMaterial[]
+  workOrders      WorkOrder[]
+  qualityInspections QualityInspection[]
+  ecommerceProducts EcommerceProduct[]
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("products")
+}
+
+model Warehouse {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  address     String?
+  companyId   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Field
+  tenantId    String
+
+  company     Company? @relation(fields: [companyId], references: [id])
+  
+  // Relations
+  stockMovements StockMovement[]
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("warehouses")
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  productId   String
+  warehouseId String
+  type        String   // in, out, transfer
+  quantity    Float
+  reference   String?  // PO, SO, Adjustment, etc.
+  date        DateTime
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product @relation(fields: [productId], references: [id])
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  @@map("stock_movements")
+}
+
+// Analytic Accounting
+model AnalyticAccount {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  type        String   // cost_center, project, department
+  parentId    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent      AnalyticAccount? @relation("AnalyticAccountHierarchy", fields: [parentId], references: [id])
+  children    AnalyticAccount[] @relation("AnalyticAccountHierarchy")
+  
+  // Relations
+  analyticLines AnalyticLine[]
+  
+  @@map("analytic_accounts")
+}
+
+model AnalyticLine {
+  id              String   @id @default(cuid())
+  analyticAccountId String
+  accountTransactionId String
+  amount          Float
+  percentage      Float    @default(100)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  analyticAccount AnalyticAccount @relation(fields: [analyticAccountId], references: [id])
+  accountTransaction AccountTransaction @relation(fields: [accountTransactionId], references: [id])
+  
+  @@map("analytic_lines")
+}
+
+// CRM Module
+model Lead {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  company     String?
+  source      String?  // website, referral, advertisement, etc.
+  status      String   @default("new") // new, contacted, qualified, converted, lost
+  priority    String   @default("medium") // low, medium, high
+  estimatedValue Float?
+  notes       String?
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignedToUser User? @relation(fields: [assignedTo], references: [id])
+  
+  // Relations
+  opportunities Opportunity[]
+  activities   Activity[]
+  contacts     Contact[]
+  
+  @@map("leads")
+}
+
+model Opportunity {
+  id          String   @id @default(cuid())
+  name        String
+  leadId      String?
+  customerId  String?
+  amount      Float
+  probability Float    @default(50)
+  expectedCloseDate DateTime
+  stage       String   @default("prospecting") // prospecting, qualification, proposal, negotiation, closed_won, closed_lost
+  notes       String?
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lead        Lead? @relation(fields: [leadId], references: [id])
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  assignedToUser User? @relation(fields: [assignedTo], references: [id])
+  
+  // Relations
+  activities  Activity[]
+  
+  @@map("opportunities")
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  position    String?
+  customerId  String?
+  leadId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  lead        Lead? @relation(fields: [leadId], references: [id])
+  
+  // Relations
+  activities  Activity[]
+  
+  @@map("contacts")
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  type        String   // call, email, meeting, task
+  subject     String
+  description String?
+  dueDate     DateTime?
+  completed   Boolean  @default(false)
+  leadId      String?
+  opportunityId String?
+  contactId   String?
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lead        Lead? @relation(fields: [leadId], references: [id])
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id])
+  contact     Contact? @relation(fields: [contactId], references: [id])
+  assignedToUser User? @relation(fields: [assignedTo], references: [id])
+  
+  @@map("activities")
+}
+
+// Purchasing Module
+model Supplier {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  email       String?
+  phone       String?
+  address     String?
+  taxId       String?
+  companyId   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company? @relation(fields: [companyId], references: [id])
+  
+  // Relations
+  purchaseOrders PurchaseOrder[]
+  requestForQuotations RequestForQuotation[]
+  
+  @@map("suppliers")
+}
+
+model RequestForQuotation {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  supplierId  String
+  date        DateTime
+  expiryDate  DateTime
+  status      String   @default("draft") // draft, sent, received, cancelled
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  
+  // Relations
+  rfqItems    RFQItem[]
+  purchaseOrders PurchaseOrder[]
+  
+  @@map("request_for_quotations")
+}
+
+model RFQItem {
+  id          String   @id @default(cuid())
+  rfqId       String
+  productId   String?
+  description String
+  quantity    Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rfq         RequestForQuotation @relation(fields: [rfqId], references: [id])
+  product     Product? @relation(fields: [productId], references: [id])
+  
+  @@map("rfq_items")
+}
+
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  supplierId  String
+  rfqId       String?
+  date        DateTime
+  expectedDeliveryDate DateTime?
+  status      String   @default("draft") // draft, confirmed, received, cancelled
+  subtotal    Float
+  tax         Float
+  total       Float
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  rfq         RequestForQuotation? @relation(fields: [rfqId], references: [id])
+  createdBy   User? @relation(fields: [createdById], references: [id])
+  
+  // Relations
+  purchaseOrderItems PurchaseOrderItem[]
+  qualityInspections QualityInspection[]
+  
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id            String   @id @default(cuid())
+  purchaseOrderId String
+  productId     String?
+  description   String
+  quantity      Float
+  unitPrice     Float
+  taxRate       Float    @default(0)
+  subtotal      Float
+  tax           Float
+  total         Float
+  receivedQty   Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  product       Product? @relation(fields: [productId], references: [id])
+  
+  @@map("purchase_order_items")
+}
+
+// Manufacturing Module
+model BillOfMaterial {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  productId   String
+  version     Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product @relation(fields: [productId], references: [id])
+  
+  // Relations
+  billOfMaterialItems BillOfMaterialItem[]
+  workOrders WorkOrder[]
+  
+  @@map("bill_of_materials")
+}
+
+model BillOfMaterialItem {
+  id          String   @id @default(cuid())
+  bomId       String
+  productId   String
+  quantity    Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bom         BillOfMaterial @relation(fields: [bomId], references: [id])
+  product     Product @relation(fields: [productId], references: [id])
+  
+  @@map("bill_of_material_items")
+}
+
+model WorkOrder {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  productId   String
+  bomId       String?
+  quantity    Float
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String   @default("draft") // draft, in_progress, completed, cancelled
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product @relation(fields: [productId], references: [id])
+  bom         BillOfMaterial? @relation(fields: [bomId], references: [id])
+  
+  // Relations
+  workOrderItems WorkOrderItem[]
+  qualityInspections QualityInspection[]
+  
+  @@map("work_orders")
+}
+
+model WorkOrderItem {
+  id          String   @id @default(cuid())
+  workOrderId String
+  productId   String
+  quantity    Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  product     Product @relation(fields: [productId], references: [id])
+  
+  @@map("work_order_items")
+}
+
+// Shipping Module
+model Carrier {
+  id          String   @id @default(cuid())
+  name        String
+  trackingUrl String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  shipments   Shipment[]
+  
+  @@map("carriers")
+}
+
+model Shipment {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  salesOrderId String
+  carrierId   String
+  trackingNumber String?
+  shipDate    DateTime?
+  deliveryDate DateTime?
+  status      String   @default("draft") // draft, shipped, in_transit, delivered, cancelled
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  salesOrder  SalesOrder @relation(fields: [salesOrderId], references: [id])
+  carrier     Carrier @relation(fields: [carrierId], references: [id])
+  
+  // Relations
+  packages    Package[]
+  
+  @@map("shipments")
+}
+
+model Package {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  weight      Float?
+  dimensions  String?  // LxWxH
+  trackingNumber String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  shipment    Shipment @relation(fields: [shipmentId], references: [id])
+  
+  @@map("packages")
+}
+
+// Project Management
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  customerId  String?
+  startDate   DateTime
+  endDate     DateTime?
+  budget      Float?
+  status      String   @default("planning") // planning, active, on_hold, completed, cancelled
+  managerId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  manager     User? @relation(fields: [managerId], references: [id])
+  
+  // Relations
+  tasks       Task[]
+  timeEntries TimeEntry[]
+  
+  @@map("projects")
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String   @default("todo") // todo, in_progress, review, done
+  priority    String   @default("medium") // low, medium, high
+  estimatedHours Float?
+  actualHours Float    @default(0)
+  assigneeId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project @relation(fields: [projectId], references: [id])
+  assignee    User? @relation(fields: [assigneeId], references: [id])
+  
+  // Relations
+  timeEntries TimeEntry[]
+  
+  @@map("tasks")
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  projectId   String?
+  taskId      String?
+  userId      String
+  date        DateTime
+  hours       Float
+  description String?
+  billable    Boolean  @default(true)
+  rate        Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project? @relation(fields: [projectId], references: [id])
+  task        Task? @relation(fields: [taskId], references: [id])
+  user        User @relation(fields: [userId], references: [id])
+  
+  @@map("time_entries")
+}
+
+// Subscription Management
+model Subscription {
+  id          String   @id @default(cuid())
+  customerId  String
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  frequency   String   // monthly, quarterly, yearly
+  amount      Float
+  status      String   @default("active") // active, paused, cancelled, expired
+  lastInvoiceDate DateTime?
+  nextInvoiceDate DateTime?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+  createdBy   User? @relation(fields: [createdById], references: [id])
+  
+  // Relations
+  subscriptionInvoices SubscriptionInvoice[]
+  
+  @@map("subscriptions")
+}
+
+model SubscriptionInvoice {
+  id            String   @id @default(cuid())
+  subscriptionId String
+  invoiceId     String?
+  date          DateTime
+  dueDate       DateTime
+  amount        Float
+  status        String   @default("draft") // draft, sent, paid, overdue
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscription  Subscription @relation(fields: [subscriptionId], references: [id])
+  invoice       Invoice? @relation(fields: [invoiceId], references: [id])
+  
+  @@map("subscription_invoices")
+}
+
+// Third Party Integration
+model Integration {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // bank, carrier, payment_gateway, etc.
+  config      String   // JSON configuration
+  isActive    Boolean  @default(true)
+  status      String   @default("disconnected") // disconnected, connected, error
+  lastSync    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  webhooks    Webhook[]
+  
+  @@map("integrations")
+}
+
+model Webhook {
+  id          String   @id @default(cuid())
+  integrationId String
+  url         String
+  events      String   // JSON array of events
+  secret      String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  integration Integration @relation(fields: [integrationId], references: [id])
+  
+  @@map("webhooks")
+}
+
+// Human Resources Management (HRM)
+model Employee {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  firstName   String
+  lastName    String
+  email       String   @unique
+  phone       String?
+  address     String?
+  dateOfBirth DateTime?
+  hireDate    DateTime
+  department  String?
+  position    String?
+  salary      Float?
+  status      String   @default("active") // active, on_leave, terminated
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User? @relation(fields: [userId], references: [id])
+  
+  // Relations
+  attendances    Attendance[]
+  payrollRecords PayrollRecord[]
+  performanceReviews PerformanceReview[]
+  trainingRecords TrainingRecord[]
+  leaveRequests  LeaveRequest[]
+  
+  @@map("employees")
+}
+
+model Attendance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  date        DateTime
+  clockIn     DateTime?
+  clockOut    DateTime?
+  breakHours  Float    @default(0)
+  totalHours  Float?
+  status      String   @default("pending") // pending, approved, rejected
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  
+  @@map("attendances")
+}
+
+model PayrollRecord {
+  id          String   @id @default(cuid())
+  employeeId  String
+  period      String   // e.g., "2024-01"
+  grossSalary Float
+  deductions  Float    @default(0)
+  netSalary   Float
+  payDate     DateTime?
+  status      String   @default("draft") // draft, processed, paid
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  
+  // Relations
+  payrollItems PayrollItem[]
+  
+  @@map("payroll_records")
+}
+
+model PayrollItem {
+  id            String   @id @default(cuid())
+  payrollRecordId String
+  type          String   // salary, bonus, deduction, tax
+  description   String
+  amount        Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  payrollRecord PayrollRecord @relation(fields: [payrollRecordId], references: [id])
+  
+  @@map("payroll_items")
+}
+
+model PerformanceReview {
+  id          String   @id @default(cuid())
+  employeeId  String
+  reviewerId  String?
+  reviewDate  DateTime
+  period      String   // e.g., "Q1-2024"
+  overallRating Float
+  goals       String?
+  achievements String?
+  improvements String?
+  comments    String?
+  status      String   @default("draft") // draft, submitted, approved
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  reviewer    User? @relation(fields: [reviewerId], references: [id])
+  
+  @@map("performance_reviews")
+}
+
+model TrainingRecord {
+  id          String   @id @default(cuid())
+  employeeId  String
+  courseName  String
+  provider    String?
+  startDate   DateTime
+  endDate     DateTime?
+  cost        Float?
+  status      String   @default("planned") // planned, in_progress, completed, cancelled
+  certificate String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  
+  @@map("training_records")
+}
+
+model LeaveRequest {
+  id          String   @id @default(cuid())
+  employeeId  String
+  leaveType   String   // vacation, sick, personal, maternity
+  startDate   DateTime
+  endDate     DateTime
+  totalDays   Float
+  reason      String?
+  status      String   @default("pending") // pending, approved, rejected, cancelled
+  approvedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  approvedByUser User? @relation(fields: [approvedBy], references: [id])
+  
+  @@map("leave_requests")
+}
+
+// Asset Management
+model Asset {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  category    String   // equipment, vehicle, furniture, it_equipment
+  description String?
+  purchaseDate DateTime?
+  purchasePrice Float?
+  currentValue Float?
+  location    String?
+  department  String?
+  status      String   @default("active") // active, maintenance, disposed, retired
+  warrantyExpiry DateTime?
+  barcode     String?
+  qrCode      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  depreciationRecords DepreciationRecord[]
+  maintenanceRecords MaintenanceRecord[]
+  assetLeases    AssetLease[]
+  
+  @@map("assets")
+}
+
+model DepreciationRecord {
+  id          String   @id @default(cuid())
+  assetId     String
+  date        DateTime
+  method      String   // straight_line, reducing_balance
+  amount      Float
+  accumulatedValue Float
+  bookValue   Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  asset       Asset @relation(fields: [assetId], references: [id])
+  
+  @@map("depreciation_records")
+}
+
+model MaintenanceRecord {
+  id          String   @id @default(cuid())
+  assetId     String
+  maintenanceType String // preventive, corrective, emergency
+  description String
+  cost        Float?
+  performedBy String?
+  performedDate DateTime?
+  status      String   @default("scheduled") // scheduled, in_progress, completed, cancelled
+  nextMaintenanceDate DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  asset       Asset @relation(fields: [assetId], references: [id])
+  
+  @@map("maintenance_records")
+}
+
+model AssetLease {
+  id          String   @id @default(cuid())
+  assetId     String
+  lessor      String
+  leaseNumber String?
+  startDate   DateTime
+  endDate     DateTime
+  monthlyPayment Float
+  status      String   @default("active") // active, expired, terminated
+  terms       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  asset       Asset @relation(fields: [assetId], references: [id])
+  
+  @@map("asset_leases")
+}
+
+// Quality Management (QM)
+model QualityInspection {
+  id          String   @id @default(cuid())
+  reference   String   @unique
+  inspectionType String // incoming, in_process, final, supplier
+  productId   String?
+  purchaseOrderId String?
+  workOrderId String?
+  date        DateTime
+  inspectorId String?
+  status      String   @default("pending") // pending, in_progress, passed, failed, cancelled
+  result      String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product? @relation(fields: [productId], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id])
+  inspector   User? @relation(fields: [inspectorId], references: [id])
+  
+  // Relations
+  inspectionItems InspectionItem[]
+  nonConformances NonConformance[]
+  
+  @@map("quality_inspections")
+}
+
+model InspectionItem {
+  id            String   @id @default(cuid())
+  inspectionId  String
+  parameter     String
+  specification String?
+  result        String
+  status        String   // pass, fail, na
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  inspection    QualityInspection @relation(fields: [inspectionId], references: [id])
+  
+  @@map("inspection_items")
+}
+
+model NonConformance {
+  id          String   @id @default(cuid())
+  reference   String   @unique
+  inspectionId String?
+  severity    String   // low, medium, high, critical
+  type        String   // product, process, documentation, supplier
+  description String
+  detectedDate DateTime
+  reportedBy  String?
+  status      String   @default("open") // open, in_progress, resolved, closed
+  rootCause   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inspection  QualityInspection? @relation(fields: [inspectionId], references: [id])
+  reportedByUser User? @relation(fields: [reportedBy], references: [id])
+  
+  // Relations
+  correctiveActions CorrectiveAction[]
+  
+  @@map("non_conformances")
+}
+
+model CorrectiveAction {
+  id              String   @id @default(cuid())
+  nonConformanceId String
+  description     String
+  assignedTo      String?
+  dueDate         DateTime?
+  status          String   @default("pending") // pending, in_progress, completed, cancelled
+  effectiveness   String?
+  completedDate   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  nonConformance  NonConformance @relation(fields: [nonConformanceId], references: [id])
+  assignedToUser  User? @relation(fields: [assignedTo], references: [id])
+  
+  @@map("corrective_actions")
+}
+
+model QualityAudit {
+  id          String   @id @default(cuid())
+  reference   String   @unique
+  auditType   String   // internal, external, supplier
+  scope       String
+  auditorId   String?
+  startDate   DateTime
+  endDate     DateTime?
+  status      String   @default("planned") // planned, in_progress, completed, cancelled
+  findings    String?
+  recommendations String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  auditor     User? @relation(fields: [auditorId], references: [id])
+  
+  // Relations
+  auditFindings AuditFinding[]
+  
+  @@map("quality_audits")
+}
+
+model AuditFinding {
+  id          String   @id @default(cuid())
+  auditId     String
+  description String
+  severity    String   // minor, major, critical
+  category    String   // compliance, process, documentation, safety
+  status      String   @default("open") // open, in_progress, resolved, closed
+  dueDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  audit       QualityAudit @relation(fields: [auditId], references: [id])
+  
+  @@map("audit_findings")
+}
+
+// Document Management System (DMS)
+model Document {
+  id            String   @id @default(cuid())
+  title         String
+  fileName      String
+  filePath      String
+  fileSize      Int
+  mimeType      String
+  version       Int      @default(1)
+  isCurrent     Boolean  @default(true)
+  status        String   @default("draft") // draft, pending_approval, approved, archived, deleted
+  categoryId    String?
+  uploadedById  String?
+  approvedById  String?
+  approvedAt    DateTime?
+  retentionDate DateTime?
+  description   String?
+  tags          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  category      DocumentCategory? @relation(fields: [categoryId], references: [id])
+  uploadedBy    User? @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  approvedBy    User? @relation("DocumentApprover", fields: [approvedById], references: [id])
+  
+  // Relations
+  documentVersions DocumentVersion[]
+  approvalWorkflows DocumentApprovalWorkflow[]
+  documentPermissions DocumentPermission[]
+  documentTemplates DocumentTemplate[]
+  
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id          String   @id @default(cuid())
+  documentId  String
+  version    Int
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  changeLog  String?
+  createdById String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  document   Document @relation(fields: [documentId], references: [id])
+  createdBy  User? @relation("DocumentVersionCreator", fields: [createdById], references: [id])
+  
+  @@unique([documentId, version])
+  @@map("document_versions")
+}
+
+model DocumentCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent      DocumentCategory? @relation("DocumentCategoryHierarchy", fields: [parentId], references: [id])
+  children    DocumentCategory[] @relation("DocumentCategoryHierarchy")
+  
+  // Relations
+  documents   Document[]
+  
+  @@map("document_categories")
+}
+
+model DocumentApprovalWorkflow {
+  id          String   @id @default(cuid())
+  documentId  String
+  status      String   @default("pending") // pending, approved, rejected
+  sequence    Int
+  assignedTo  String?
+  dueDate     DateTime?
+  comments    String?
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  document    Document @relation(fields: [documentId], references: [id])
+  assignedToUser User? @relation("DocumentApprovalAssignee", fields: [assignedTo], references: [id])
+  
+  @@map("document_approval_workflows")
+}
+
+model DocumentPermission {
+  id          String   @id @default(cuid())
+  documentId  String
+  userId      String?
+  roleId      String?
+  permission  String   // read, write, delete, approve
+  grantedAt   DateTime @default(now())
+  grantedBy   String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  document    Document @relation(fields: [documentId], references: [id])
+  user        User? @relation("DocumentPermissionUser", fields: [userId], references: [id])
+  
+  @@map("document_permissions")
+}
+
+model DocumentTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  documentId  String?
+  category    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  document    Document? @relation(fields: [documentId], references: [id])
+  
+  @@map("document_templates")
+}
+
+// Business Intelligence & Reporting
+model Report {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // standard, custom, scheduled
+  category    String   // financial, sales, inventory, hr, etc.
+  dataSource  String   // single_module, multiple_modules, data_warehouse
+  status      String   @default("active") // active, inactive, archived
+  isPublic    Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User? @relation("ReportCreator", fields: [createdById], references: [id])
+  
+  // Relations
+  reportSchedules ReportSchedule[]
+  reportFilters ReportFilter[]
+  reportVisualizations ReportVisualization[]
+  dashboardWidgets DashboardWidget[]
+  
+  @@map("reports")
+}
+
+model ReportSchedule {
+  id          String   @id @default(cuid())
+  reportId    String
+  name        String
+  frequency   String   // daily, weekly, monthly, quarterly, yearly
+  format      String   // pdf, excel, csv, html
+  recipients  String   // comma-separated email addresses
+  nextRun     DateTime
+  lastRun     DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  report      Report @relation(fields: [reportId], references: [id])
+  
+  @@map("report_schedules")
+}
+
+model ReportFilter {
+  id          String   @id @default(cuid())
+  reportId    String
+  fieldName   String
+  operator    String   // equals, contains, greater_than, less_than, etc.
+  value       String
+  dataType    String   // string, number, date, boolean
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  report      Report @relation(fields: [reportId], references: [id])
+  
+  @@map("report_filters")
+}
+
+model ReportVisualization {
+  id          String   @id @default(cuid())
+  reportId    String
+  type        String   // table, chart, graph, gauge, map
+  title       String
+  config      String   // JSON configuration
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  report      Report @relation(fields: [reportId], references: [id])
+  
+  @@map("report_visualizations")
+}
+
+model Dashboard {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  layout      String   // JSON layout configuration
+  isPublic    Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User? @relation("DashboardCreator", fields: [createdById], references: [id])
+  
+  // Relations
+  dashboardWidgets DashboardWidget[]
+  
+  @@map("dashboards")
+}
+
+model DashboardWidget {
+  id          String   @id @default(cuid())
+  dashboardId String
+  reportId    String?
+  title       String
+  type        String   // metric, chart, table, kpi
+  config      String   // JSON configuration
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  dashboard   Dashboard @relation(fields: [dashboardId], references: [id])
+  report      Report? @relation(fields: [reportId], references: [id])
+  
+  @@map("dashboard_widgets")
+}
+
+model KPI {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String   // financial, operational, customer, etc.
+  targetValue Float
+  currentValue Float
+  unit        String?
+  status      String   @default("active") // active, inactive
+  frequency   String   // daily, weekly, monthly
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User? @relation("KPICreator", fields: [createdById], references: [id])
+  
+  // Relations
+  kpiAlerts   KPIAlert[]
+  
+  @@map("kpis")
+}
+
+model KPIAlert {
+  id          String   @id @default(cuid())
+  kpiId       String
+  condition   String   // greater_than, less_than, equals, percentage_change
+  threshold   Float
+  message     String
+  severity    String   // info, warning, critical
+  isActive    Boolean  @default(true)
+  recipients  String   // comma-separated email addresses or user IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  kpi         KPI @relation(fields: [kpiId], references: [id])
+  
+  @@map("kpi_alerts")
+}
+
+// E-commerce Integration
+model EcommerceChannel {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // shopify, woocommerce, magento, amazon, custom
+  apiUrl      String?
+  apiKey      String?
+  apiSecret   String?
+  isActive    Boolean  @default(true)
+  syncStatus  String   @default("disconnected") // disconnected, connected, syncing, error
+  lastSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ecommerceProducts EcommerceProduct[]
+  ecommerceOrders EcommerceOrder[]
+  ecommerceCustomers EcommerceCustomer[]
+  syncLogs EcommerceSyncLog[]
+  pricingRules PricingRule[]
+  customerChannels CustomerChannel[]
+  
+  @@map("ecommerce_channels")
+}
+
+model EcommerceProduct {
+  id          String   @id @default(cuid())
+  channelId   String
+  productId   String?  // Reference to internal Product
+  sku         String
+  name        String
+  description String?
+  price       Float
+  comparePrice Float?
+  quantity    Int
+  status      String   @default("active") // active, inactive, archived
+  externalId  String   // ID from external platform
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel     EcommerceChannel @relation(fields: [channelId], references: [id])
+  product     Product? @relation(fields: [productId], references: [id])
+  
+  // Relations
+  ecommerceOrderItems EcommerceOrderItem[]
+  
+  @@map("ecommerce_products")
+}
+
+model EcommerceCustomer {
+  id          String   @id @default(cuid())
+  channelId   String
+  customerId  String?  // Reference to internal Customer
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  country     String?
+  postalCode  String?
+  externalId  String   // ID from external platform
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel     EcommerceChannel @relation(fields: [channelId], references: [id])
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  
+  // Relations
+  ecommerceOrders EcommerceOrder[]
+  
+  @@map("ecommerce_customers")
+}
+
+model EcommerceOrder {
+  id          String   @id @default(cuid())
+  channelId   String
+  orderId     String?  // Reference to internal SalesOrder
+  customerId  String?
+  orderNumber String
+  orderDate   DateTime
+  status      String   // pending, processing, shipped, delivered, cancelled, refunded
+  subtotal    Float
+  tax         Float
+  shipping    Float
+  total       Float
+  currency    String   @default("USD")
+  externalId  String   // ID from external platform
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel     EcommerceChannel @relation(fields: [channelId], references: [id])
+  customer    EcommerceCustomer? @relation(fields: [customerId], references: [id])
+  order       SalesOrder? @relation(fields: [orderId], references: [id])
+  
+  // Relations
+  ecommerceOrderItems EcommerceOrderItem[]
+  ecommerceShipments EcommerceShipment[]
+  
+  @@map("ecommerce_orders")
+}
+
+model EcommerceOrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String?
+  sku         String
+  name        String
+  quantity    Int
+  price       Float
+  total       Float
+  externalId  String   // ID from external platform
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  order       EcommerceOrder @relation(fields: [orderId], references: [id])
+  product     EcommerceProduct? @relation(fields: [productId], references: [id])
+  
+  @@map("ecommerce_order_items")
+}
+
+model EcommerceShipment {
+  id          String   @id @default(cuid())
+  orderId     String
+  carrier     String?
+  trackingNumber String?
+  shippingMethod String?
+  shipDate    DateTime?
+  estimatedDelivery DateTime?
+  actualDelivery DateTime?
+  status      String   @default("pending") // pending, shipped, delivered, returned
+  externalId  String   // ID from external platform
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  order       EcommerceOrder @relation(fields: [orderId], references: [id])
+  
+  @@map("ecommerce_shipments")
+}
+
+model EcommerceSyncLog {
+  id          String   @id @default(cuid())
+  channelId   String
+  type        String   // product, order, customer, inventory
+  action      String   // create, update, delete, sync
+  status      String   // pending, success, failed
+  externalId  String?
+  internalId  String?
+  message     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel     EcommerceChannel @relation(fields: [channelId], references: [id])
+  
+  @@map("ecommerce_sync_logs")
+}
+
+// =============================================
+// E-COMMERCE INTEGRATION HUB EXTENSIONS
+// =============================================
+
+model PricingRule {
+  id          String   @id @default(cuid())
+  name        String
+  channelId   String
+  productTypeId String?
+  basePrice   Float
+  currentPrice Float
+  strategy    String   // competitive_match, premium_markup, dynamic_pricing, cost_plus
+  margin      Float
+  competitionPrice Float?
+  isActive    Boolean  @default(true)
+  conditions  String?  // JSON conditions for rule application
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel     EcommerceChannel @relation(fields: [channelId], references: [id])
+  
+  @@map("pricing_rules")
+}
+
+model UnifiedCustomer {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String?
+  location    String?
+  loyaltyStatus String @default("Bronze") // Bronze, Silver, Gold, Platinum
+  joinedDate  DateTime @default(now())
+  lastOrderDate DateTime?
+  totalOrders Int      @default(0)
+  totalSpent  Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  customerChannels CustomerChannel[]
+  
+  @@map("unified_customers")
+}
+
+model CustomerChannel {
+  id          String   @id @default(cuid())
+  customerId  String
+  channelId   String
+  externalId  String?  // ID from external platform
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    UnifiedCustomer @relation(fields: [customerId], references: [id])
+  channel     EcommerceChannel @relation(fields: [channelId], references: [id])
+  
+  @@unique([customerId, channelId])
+  @@map("customer_channels")
+}
+
+// =============================================
+// TAX & REGULATORY COMPLIANCE MODULE
+// =============================================
+
+model TaxJurisdiction {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  country     String
+  region      String?
+  taxType     String   // vat, gst, sales_tax, income_tax, etc.
+  rate        Float
+  isActive    Boolean  @default(true)
+  rules       String?  // JSON rules configuration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // SaaS Field
+  tenantId    String
+  
+  // Relations
+  taxRules    TaxRule[]
+  taxReturns  TaxReturn[]
+  taxCalculations TaxCalculation[]
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@map("tax_jurisdictions")
+}
+
+model TaxRule {
+  id          String   @id @default(cuid())
+  name        String
+  jurisdictionId String
+  ruleType    String   // calculation, exemption, threshold, etc.
+  conditions  String   // JSON conditions
+  actions     String   // JSON actions
+  priority    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  jurisdiction TaxJurisdiction @relation(fields: [jurisdictionId], references: [id])
+  
+  // Relations
+  taxCalculations TaxCalculation[]
+  
+  @@map("tax_rules")
+}
+
+model TaxCalculation {
+  id          String   @id @default(cuid())
+  referenceId String   // invoice_id, sales_order_id, etc.
+  referenceType String // invoice, sales_order, purchase_order, etc.
+  jurisdictionId String
+  ruleId      String?
+  taxType     String
+  taxableAmount Float
+  taxRate     Float
+  taxAmount   Float
+  calculationData String? // JSON detailed calculation
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  jurisdiction TaxJurisdiction @relation(fields: [jurisdictionId], references: [id])
+  rule        TaxRule? @relation(fields: [ruleId], references: [id])
+  
+  @@map("tax_calculations")
+}
+
+model TaxReturn {
+  id          String   @id @default(cuid())
+  number      String   @unique
+  jurisdictionId String
+  period      String   // monthly, quarterly, yearly
+  startDate   DateTime
+  endDate     DateTime
+  status      String   @default("draft") // draft, filed, approved, rejected
+  totalTax    Float
+  totalPayments Float
+  balance     Float
+  filingData  String?  // JSON filing data
+  efileId     String?  // External e-filing reference
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  jurisdiction TaxJurisdiction @relation(fields: [jurisdictionId], references: [id])
+  
+  // Relations
+  taxReturnPayments TaxReturnPayment[]
+  
+  @@map("tax_returns")
+}
+
+model TaxReturnPayment {
+  id          String   @id @default(cuid())
+  returnId    String
+  amount      Float
+  paymentDate DateTime
+  method      String   // electronic, check, wire
+  reference   String?
+  status      String   @default("pending") // pending, completed, failed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  taxReturn   TaxReturn @relation(fields: [returnId], references: [id])
+  
+  @@map("tax_return_payments")
+}
+
+// =============================================
+// COMPLIANCE / AUDIT TRAIL & ESIGNATURE MODULE
+// =============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  entityId    String
+  entityType  String   // user, transaction, document, etc.
+  action      String   // create, update, delete, view, sign, etc.
+  userId      String
+  ipAddress   String?
+  userAgent   String?
+  changes     String?  // JSON before/after changes
+  metadata    String?  // JSON additional metadata
+  hash        String?  // Cryptographic hash for tamper evidence
+  createdAt   DateTime @default(now())
+  
+  user        User @relation(fields: [userId], references: [id])
+  
+  @@map("audit_logs")
+}
+
+model SignatureRequest {
+  id          String   @id @default(cuid())
+  documentId  String
+  documentType String // contract, invoice, agreement, etc.
+  signers     String   // JSON array of signer information
+  status      String   @default("pending") // pending, signed, declined, expired
+  expiresAt   DateTime?
+  signedAt    DateTime?
+  externalId  String?  // External signature provider ID
+  provider    String?  // docusign, adobe_sign, etc.
+  metadata    String?  // JSON additional metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  signatureResponses SignatureResponse[]
+  
+  @@map("signature_requests")
+}
+
+model SignatureResponse {
+  id          String   @id @default(cuid())
+  requestId   String
+  signerEmail String
+  signerName  String
+  status      String   @default("pending") // pending, signed, declined
+  signedAt    DateTime?
+  ipAddress   String?
+  signatureData String? // JSON signature data
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  request     SignatureRequest @relation(fields: [requestId], references: [id])
+  
+  @@map("signature_responses")
+}
+
+model ApprovalWorkflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  entityType  String   // invoice, contract, purchase_order, etc.
+  stages      String   // JSON workflow stages
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  approvalRequests ApprovalRequest[]
+  
+  @@map("approval_workflows")
+}
+
+model ApprovalRequest {
+  id          String   @id @default(cuid())
+  workflowId  String
+  entityId    String
+  entityType  String
+  requesterId String
+  currentStage Int      @default(0)
+  status      String   @default("pending") // pending, approved, rejected
+  data        String?  // JSON entity data
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  workflow    ApprovalWorkflow @relation(fields: [workflowId], references: [id])
+  requester   User @relation(fields: [requesterId], references: [id])
+  
+  // Relations
+  approvalStages ApprovalStage[]
+  
+  @@map("approval_requests")
+}
+
+model ApprovalStage {
+  id          String   @id @default(cuid())
+  requestId   String
+  stageNumber Int
+  approverId  String
+  status      String   @default("pending") // pending, approved, rejected
+  comments    String?
+  approvedAt  DateTime?
+  metadata    String?  // JSON additional metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  request     ApprovalRequest @relation(fields: [requestId], references: [id])
+  approver    User @relation(fields: [approverId], references: [id])
+  
+  @@map("approval_stages")
+}
+
+// =============================================
+// ARTIFICIAL INTELLIGENCE & MACHINE LEARNING MODULE
+// =============================================
+
+model MLModel {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // demand_forecasting, price_optimization, anomaly_detection, etc.
+  version     String   @default("1.0")
+  status      String   @default("training") // training, active, deprecated
+  config      String   // JSON model configuration
+  metrics     String?  // JSON performance metrics
+  modelData   String?  // Binary or reference to model file
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  mlPredictions MLPrediction[]
+  mlTrainingRuns MLTrainingRun[]
+  dataSourceId  String?
+  dataSource    DataSource? @relation(fields: [dataSourceId], references: [id])
+  predictions   Prediction[]
+  analyticsReports AnalyticsReport[]
+  
+  @@map("ml_models")
+}
+
+model MLTrainingRun {
+  id          String   @id @default(cuid())
+  modelId     String
+  status      String   @default("pending") // pending, running, completed, failed
+  startTime   DateTime?
+  endTime     DateTime?
+  config      String   // JSON training configuration
+  metrics     String?  // JSON training metrics
+  logs        String?  // Training logs
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  model       MLModel @relation(fields: [modelId], references: [id])
+  
+  @@map("ml_training_runs")
+}
+
+model MLPrediction {
+  id          String   @id @default(cuid())
+  modelId     String
+  inputType   String   // sales_data, customer_data, inventory_data, etc.
+  inputData   String   // JSON input data
+  predictions String   // JSON prediction results
+  confidence  Float?
+  metadata    String?  // JSON additional metadata
+  createdAt   DateTime @default(now())
+  
+  model       MLModel @relation(fields: [modelId], references: [id])
+  
+  @@map("ml_predictions")
+}
+
+model AIAgent {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // chatbot, assistant, analyzer, etc.
+  model       String   // gpt-4, claude, custom, etc.
+  config      String   // JSON agent configuration
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  aiConversations AIConversation[]
+  
+  @@map("ai_agents")
+}
+
+model AIConversation {
+  id          String   @id @default(cuid())
+  agentId     String
+  userId      String?
+  sessionId   String
+  messages    String   // JSON conversation messages
+  context     String?  // JSON conversation context
+  status      String   @default("active") // active, closed, archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  agent       AIAgent @relation(fields: [agentId], references: [id])
+  user        User? @relation(fields: [userId], references: [id])
+  
+  @@map("ai_conversations")
+}
+
+model AIInsight {
+  id          String   @id @default(cuid())
+  type        String   // demand_forecast, price_optimization, customer_behavior, anomaly
+  title       String
+  description String
+  confidence  Float
+  data        String   // JSON insight data
+  recommendations String? // JSON recommendations
+  status      String   @default("new") // new, reviewed, implemented, dismissed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("ai_insights")
+}
+
+// Customer Success Management (CSM) Models
+model CustomerHealthScore {
+  id              String   @id @default(cuid())
+  customerId      String
+  score           Float
+  status          String   // Excellent, Good, Fair, At Risk
+  trend           String   // up, down, stable
+  lastInteraction DateTime?
+  factors         String?  // JSON factors contributing to score
+  recommendations String? // JSON recommendations
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  customer        Customer @relation(fields: [customerId], references: [id])
+  
+  @@map("customer_health_scores")
+}
+
+model OnboardingWorkflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  steps       String   // JSON workflow steps
+  status      String   @default("Active") // Active, Paused, Completed
+  customers   Int      @default(0)
+  completion  Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  onboardingProgress OnboardingProgress[]
+  
+  @@map("onboarding_workflows")
+}
+
+model OnboardingProgress {
+  id               String   @id @default(cuid())
+  customerId       String
+  workflowId       String
+  currentStep      Int      @default(0)
+  completedSteps   String   // JSON array of completed step IDs
+  status           String   @default("In Progress") // Not Started, In Progress, Completed, Failed
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  customer         Customer @relation(fields: [customerId], references: [id])
+  workflow         OnboardingWorkflow @relation(fields: [workflowId], references: [id])
+  
+  @@unique([customerId, workflowId])
+  @@map("onboarding_progress")
+}
+
+model Renewal {
+  id          String   @id @default(cuid())
+  customerId  String
+  amount      Float
+  currency    String   @default("USD")
+  renewalDate DateTime
+  probability Float    @default(50)
+  status      String   @default("On Track") // On Track, At Risk, Lost, Won
+  notes       String?
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  @@map("renewals")
+}
+
+model CustomerFeedback {
+  id          String   @id @default(cuid())
+  customerId  String
+  rating      Float
+  sentiment   String   // Positive, Neutral, Negative
+  feedback    String
+  category    String?  // Product, Service, Support, etc.
+  source      String?  // Survey, Email, Support Ticket, etc.
+  status      String   @default("New") // New, Reviewed, Resolved, Closed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  @@map("customer_feedback")
+}
+
+model SuccessPlaybook {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // onboarding, renewal, advocacy, support
+  triggers    String   // JSON trigger conditions
+  actions     String   // JSON playbook actions
+  status      String   @default("Draft") // Draft, Active, Paused
+  customers   Int      @default(0)
+  successRate Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  playbookExecutions PlaybookExecution[]
+  
+  @@map("success_playbooks")
+}
+
+model PlaybookExecution {
+  id          String   @id @default(cuid())
+  playbookId  String
+  customerId  String
+  status      String   @default("Running") // Running, Completed, Failed, Cancelled
+  progress    Float    @default(0)
+  results     String?  // JSON execution results
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  playbook    SuccessPlaybook @relation(fields: [playbookId], references: [id])
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  @@map("playbook_executions")
+}
+
+// Contract Lifecycle Management (CLM) Models
+model Contract {
+  id              String   @id @default(cuid())
+  title           String
+  type            String   // License, SLA, Procurement, HR, NDA, etc.
+  status          String   @default("Draft") // Draft, Pending Approval, Active, Expired, Terminated
+  value           Float
+  currency        String   @default("USD")
+  startDate       DateTime
+  endDate         DateTime
+  renewalDate     DateTime?
+  description     String?
+  content         String?  // Full contract content
+  metadata        String?  // JSON contract metadata
+  riskLevel       String   @default("Medium") // Low, Medium, High
+  compliance      String   @default("Not Reviewed") // Compliant, Non-Compliant, Under Review, Not Reviewed
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  approvalWorkflows ContractApprovalWorkflow[]
+  complianceItems   ComplianceItem[]
+  renewals          ContractRenewal[]
+  riskAssessments   RiskAssessment[]
+  contractDocuments ContractDocument[]
+  
+  @@map("contracts")
+}
+
+model ContractTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  category        String   // Technology, Services, Procurement, HR, Legal
+  description     String
+  version         String   @default("1.0")
+  status          String   @default("Active") // Active, Archived, Draft
+  requiredFields  String   // JSON array of required fields
+  optionalFields  String?  // JSON array of optional fields
+  content         String   // Template content
+  tags            String?  // JSON array of tags
+  usage           Int      @default(0)
+  lastUpdated     DateTime @default(now())
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("contract_templates")
+}
+
+model ContractApprovalWorkflow {
+  id          String   @id @default(cuid())
+  name        String
+  contractId  String
+  stages      String   // JSON workflow stages
+  currentStage String  @default("Initial Review")
+  totalStages Int      @default(1)
+  progress    Float    @default(0)
+  status      String   @default("In Progress") // In Progress, Approved, Rejected, Cancelled
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contract    Contract @relation(fields: [contractId], references: [id])
+  
+  @@map("contract_approval_workflows")
+}
+
+model ComplianceItem {
+  id            String   @id @default(cuid())
+  contractId    String
+  requirement   String
+  category      String   // Data Protection, Financial, Legal, etc.
+  status        String   @default("Not Reviewed") // Compliant, Non-Compliant, Under Review, Not Reviewed
+  severity      String   @default("Medium") // Low, Medium, High, Critical
+  details       String?
+  evidence      String?  // JSON array of evidence
+  lastChecked   DateTime?
+  nextCheck     DateTime?
+  assignedTo    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contract      Contract @relation(fields: [contractId], references: [id])
+  
+  @@map("compliance_items")
+}
+
+model ContractRenewal {
+  id            String   @id @default(cuid())
+  contractId    String
+  value         Float
+  currency      String   @default("USD")
+  renewalDate   DateTime
+  daysLeft      Int      @default(0)
+  status        String   @default("On Track") // On Track, Attention Needed, Urgent, Expired
+  autoRenew     Boolean  @default(false)
+  renewalTerms  String?
+  notifications String?  // JSON notification settings
+  assignedTo    String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contract      Contract @relation(fields: [contractId], references: [id])
+  
+  @@map("contract_renewals")
+}
+
+model RiskAssessment {
+  id              String   @id @default(cuid())
+  contractId      String
+  riskLevel       String   // Low, Medium, High
+  score           Float    @default(0)
+  factors         String   // JSON risk factors
+  mitigation      String?
+  likelihood      String   @default("Medium") // Low, Medium, High
+  impact          String   @default("Medium") // Low, Medium, High
+  category        String   @default("General") // Financial, Operational, Service, Legal
+  assessedBy      String?
+  assessedAt      DateTime @default(now())
+  nextReview      DateTime?
+  recommendations String?  // JSON recommendations
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  contract        Contract @relation(fields: [contractId], references: [id])
+  
+  @@map("risk_assessments")
+}
+
+model ContractDocument {
+  id          String   @id @default(cuid())
+  contractId  String
+  name        String
+  type        String   // Original, Signed, Amendment, etc.
+  filePath    String
+  fileSize    Int?
+  mimeType    String?
+  uploadedBy  String?
+  uploadedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  contract    Contract @relation(fields: [contractId], references: [id])
+  
+  @@map("contract_documents")
+}
+
+// Business Intelligence & AI Models
+model PredictionModel {
+  id              String   @id @default(cuid())
+  name            String
+  type            String   // Sales Forecast, Inventory Demand, Cash Flow, etc.
+  algorithm       String   // ARIMA, LSTM, Prophet, etc.
+  accuracy        Float    @default(0)
+  confidence      Float    @default(0)
+  period          String   // Next 6 Months, Next 3 Months, etc.
+  status          String   @default("Training") // Active, Training, Paused, Error
+  lastRun         DateTime?
+  nextRun         DateTime?
+  prediction      String?
+  dataPoints      Int      @default(0)
+  features        String   // JSON array of features
+  hyperparameters String?  // JSON hyperparameters
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("prediction_models")
+}
+
+model AnomalyDetection {
+  id              String   @id @default(cuid())
+  type            String   // Financial Transaction, User Behavior, Sales Pattern, etc.
+  severity        String   // High, Medium, Low
+  confidence      Float    @default(0)
+  anomalyScore    Float    @default(0)
+  detected        DateTime @default(now())
+  description     String
+  status          String   @default("New") // New, Under Review, Investigating, Resolved, False Positive
+  category        String   // Financial, Security, Sales, Operations, etc.
+  dataSource      String
+  affectedRecords Int      @default(0)
+  action          String?
+  assignedTo      String?
+  resolvedAt      DateTime?
+  metadata        String?  // JSON additional metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("anomaly_detections")
+}
+
+model ChatbotConversation {
+  id          String   @id @default(cuid())
+  sessionId   String
+  userId      String?
+  messages    String   // JSON conversation messages
+  status      String   @default("active") // active, closed, archived
+  satisfaction Float?   // 1-5 rating
+  language    String   @default("English")
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([sessionId])
+  @@map("chatbot_conversations")
+}
+
+model AutomatedReport {
+  id              String   @id @default(cuid())
+  name            String
+  type            String   // Scheduled, AI-Powered, On-Demand
+  frequency       String   // Daily, Weekly, Monthly, Quarterly, As Needed
+  format          String   @default("PDF") // PDF, Excel, Interactive Dashboard
+  status          String   @default("Active") // Active, Paused, Error
+  lastGenerated   DateTime?
+  nextGeneration  DateTime?
+  recipients      Int      @default(0)
+  insights        String?
+  template        String
+  distribution    String   // JSON distribution methods
+  generatedBy     String   // ai_system, ml_model, user
+  size            String?   // File size
+  metadata        String?  // JSON additional metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("automated_reports")
+}
+
+model BIMLModel {
+  id                String   @id @default(cuid())
+  name              String
+  type              String   // Classification, Regression, Anomaly Detection, Clustering
+  algorithm         String   // Random Forest, XGBoost, Neural Network, etc.
+  version           String   @default("v1.0.0")
+  accuracy          Float    @default(0)
+  precision         Float    @default(0)
+  recall            Float    @default(0)
+  f1Score           Float    @default(0)
+  status            String   @default("Training") // Training, Deployed, Paused, Error
+  trainingData      String
+  lastTrained       DateTime?
+  features          Int      @default(0)
+  description       String?
+  hyperparameters   String?  // JSON hyperparameters
+  performanceMetrics String?  // JSON performance metrics
+  deploymentInfo    String?  // JSON deployment information
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("bi_ml_models")
+}
+
+// Compliance & Audit Management
+model Regulation {
+  id            String   @id @default(cuid())
+  name          String
+  code          String   @unique
+  type          String   // GDPR, SOX, HIPAA, PCI-DSS, etc.
+  category      String   // Data Privacy, Financial, Security, etc.
+  description   String?
+  jurisdiction  String?
+  effectiveDate DateTime?
+  lastUpdated   DateTime?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  complianceFrameworks ComplianceFramework[]
+  complianceRequirements ComplianceRequirement[]
+  
+  @@map("regulations")
+}
+
+model ComplianceFramework {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  regulationId  String
+  version       String   @default("1.0")
+  status        String   @default("Active") // Active, Draft, Archived
+  scope         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  regulation    Regulation @relation(fields: [regulationId], references: [id])
+  
+  // Relations
+  complianceRequirements ComplianceRequirement[]
+  complianceAssessments ComplianceAssessment[]
+  
+  @@map("compliance_frameworks")
+}
+
+model ComplianceRequirement {
+  id                String   @id @default(cuid())
+  name              String
+  description       String
+  regulationId      String
+  frameworkId       String?
+  category          String   // Technical, Organizational, Legal
+  criticality       String   // High, Medium, Low
+  controlType       String   // Preventive, Detective, Corrective
+  frequency         String   // Continuous, Daily, Weekly, Monthly, Quarterly, Yearly
+  isMandatory       Boolean  @default(true)
+  status            String   @default("Active") // Active, Deprecated, Superseded
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  regulation        Regulation @relation(fields: [regulationId], references: [id])
+  framework         ComplianceFramework? @relation(fields: [frameworkId], references: [id])
+  
+  // Relations
+  complianceAssessments ComplianceAssessment[]
+  complianceEvidence ComplianceEvidence[]
+  
+  @@map("compliance_requirements")
+}
+
+model ComplianceAssessment {
+  id                String   @id @default(cuid())
+  frameworkId       String
+  requirementId     String
+  name              String
+  description       String?
+  assessmentType    String   // Self-Assessment, External Audit, Internal Audit
+  scheduledDate     DateTime
+  completedDate     DateTime?
+  status            String   @default("Scheduled") // Scheduled, In Progress, Completed, Failed, Cancelled
+  score             Float?   // 0-100
+  result            String?  // Pass, Fail, Partial
+  findings          String?  // JSON findings
+  recommendations   String?
+  assessedBy        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  framework         ComplianceFramework @relation(fields: [frameworkId], references: [id])
+  requirement       ComplianceRequirement @relation(fields: [requirementId], references: [id])
+  
+  // Relations
+  complianceEvidence ComplianceEvidence[]
+  
+  @@map("compliance_assessments")
+}
+
+model ComplianceEvidence {
+  id                String   @id @default(cuid())
+  requirementId     String
+  assessmentId      String?
+  name              String
+  type              String   // Document, Screenshot, Log, Interview, etc.
+  description       String?
+  filePath          String?
+  fileSize          Int?
+  mimeType          String?
+  status            String   @default("Valid") // Valid, Expired, Invalid, Under Review
+  uploadDate        DateTime @default(now())
+  expiryDate        DateTime?
+  uploadedBy        String?
+  metadata          String?  // JSON additional metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  requirement       ComplianceRequirement @relation(fields: [requirementId], references: [id])
+  assessment        ComplianceAssessment? @relation(fields: [assessmentId], references: [id])
+  
+  @@map("compliance_evidence")
+}
+
+model Audit {
+  id                String   @id @default(cuid())
+  name              String
+  type              String   // Internal, External, Regulatory, IT, Financial
+  scope             String?
+  objectives        String?
+  scheduledStart    DateTime
+  scheduledEnd      DateTime
+  actualStart       DateTime?
+  actualEnd         DateTime?
+  status            String   @default("Planned") // Planned, In Progress, Completed, Cancelled, On Hold
+  leadAuditor       String?
+  teamMembers       String?  // JSON team members
+  budget            Float?
+  actualCost        Float?
+  riskLevel         String   // High, Medium, Low
+  findings          String?  // JSON findings
+  recommendations   String?
+  reportPath        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  complianceAuditFindings ComplianceAuditFinding[]
+  auditPlans        AuditPlan[]
+  
+  @@map("audits")
+}
+
+model AuditPlan {
+  id                String   @id @default(cuid())
+  auditId           String
+  name              String
+  description       String?
+  area              String   // Financial, Operational, IT, Compliance
+  procedure         String?
+  sampleSize        Int?
+  criteria          String?
+  methodology       String?
+  status            String   @default("Planned") // Planned, In Progress, Completed, Skipped
+  assignedTo        String?
+  scheduledDate     DateTime
+  completedDate     DateTime?
+  result            String?  // Pass, Fail, Partial, N/A
+  notes             String?
+  evidence          String?  // JSON evidence references
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  audit             Audit @relation(fields: [auditId], references: [id])
+  
+  @@map("audit_plans")
+}
+
+model ComplianceAuditFinding {
+  id                String   @id @default(cuid())
+  auditId           String
+  title             String
+  description       String
+  severity          String   // Critical, High, Medium, Low
+  category          String   // Control Deficiency, Process Issue, Policy Violation, etc.
+  rootCause         String?
+  impact            String?
+  recommendation    String?
+  status            String   @default("Open") // Open, In Progress, Resolved, Closed, Accepted
+  assignedTo        String?
+  dueDate           DateTime?
+  resolvedDate      DateTime?
+  actionPlan        String?  // JSON action plan
+  verification      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  audit             Audit @relation(fields: [auditId], references: [id])
+  
+  @@map("compliance_audit_findings")
+}
+
+model ComplianceRisk {
+  id                String   @id @default(cuid())
+  name              String
+  description       String
+  category          String   // Operational, Financial, Legal, Reputational, Strategic
+  source            String   // Internal, External, Regulatory, Technology
+  likelihood        String   // Very Low, Low, Medium, High, Very High
+  impact            String   // Very Low, Low, Medium, High, Very High
+  riskLevel         String   // Critical, High, Medium, Low
+  mitigation        String?
+  owner             String?
+  status            String   @default("Open") // Open, Mitigated, Accepted, Transferred, Closed
+  identifiedDate    DateTime @default(now())
+  targetDate        DateTime?
+  lastAssessed      DateTime?
+  controlMeasures   String?  // JSON control measures
+  monitoringPlan    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("compliance_risks")
+}
+
+model ComplianceReport {
+  id                String   @id @default(cuid())
+  name              String
+  type              String   // Status Report, Summary Report, Detailed Report
+  period            String   // Monthly, Quarterly, Yearly, Custom
+  startDate         DateTime
+  endDate           DateTime
+  status            String   @default("Draft") // Draft, Published, Archived
+  generatedBy       String?
+  generatedAt       DateTime @default(now())
+  data              String?  // JSON report data
+  summary           String?
+  keyMetrics        String?  // JSON key metrics
+  recommendations   String?
+  filePath          String?
+  distribution      String?  // JSON distribution list
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("compliance_reports")
+}
+
+// Social Media Management
+model SocialAccount {
+  id                String   @id @default(cuid())
+  name              String
+  platform          String   // Facebook, Twitter, Instagram, LinkedIn, TikTok, YouTube, Pinterest
+  accountId         String   @unique
+  accountType       String   // Profile, Page, Business, Creator
+  username          String?
+  profileImage      String?
+  accessToken       String?
+  refreshToken      String?
+  isActive          Boolean  @default(true)
+  connectedAt       DateTime?
+  lastSyncedAt      DateTime?
+  followerCount     Int      @default(0)
+  followingCount    Int      @default(0)
+  postCount         Int      @default(0)
+  engagementRate   Float    @default(0)
+  settings          String?  // JSON account settings
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  socialPosts       SocialPost[]
+  socialCampaigns   SocialCampaign[]
+  socialAds         SocialAd[]
+  socialMetrics     SocialMetric[]
+  
+  @@map("social_accounts")
+}
+
+model SocialPost {
+  id                String   @id @default(cuid())
+  accountId         String
+  platformPostId    String   @unique
+  content           String
+  mediaUrls         String?  // JSON array of media URLs
+  mediaType         String?  // image, video, carousel, story, reel
+  postType          String   // organic, promoted, story, reel
+  status            String   @default("Draft") // Draft, Scheduled, Published, Archived, Failed
+  scheduledAt       DateTime?
+  publishedAt       DateTime?
+  platform          String
+  hashtags          String?  // JSON array of hashtags
+  mentions          String?  // JSON array of mentions
+  location          String?
+  targeting         String?  // JSON targeting criteria
+  campaignId        String?
+  adGroupId         String?
+  engagementData    String?  // JSON engagement data
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  account           SocialAccount @relation(fields: [accountId], references: [id])
+  campaign          SocialCampaign? @relation(fields: [campaignId], references: [id])
+  
+  // Relations
+  socialMetrics     SocialMetric[]
+  socialComments    SocialComment[]
+  socialInteractions SocialInteraction[]
+  socialAds         SocialAd[]
+  
+  @@map("social_posts")
+}
+
+model SocialCampaign {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  objective         String   // Brand Awareness, Lead Generation, Traffic, Conversions, Engagement
+  startDate         DateTime
+  endDate           DateTime
+  budget            Float
+  actualSpend       Float    @default(0)
+  status            String   @default("Draft") // Draft, Active, Paused, Completed, Cancelled
+  platform          String   // Facebook, Instagram, LinkedIn, Twitter, TikTok
+  targetAudience    String?  // JSON target audience criteria
+  creativeAssets    String?  // JSON creative assets
+  accountId         String?
+  createdBy         String?
+  approvedBy        String?
+  approvedAt        DateTime?
+  metrics           String?  // JSON campaign metrics
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  account           SocialAccount? @relation(fields: [accountId], references: [id])
+  
+  // Relations
+  socialPosts       SocialPost[]
+  socialAds         SocialAd[]
+  influencerCampaigns InfluencerCampaign[]
+  
+  @@map("social_campaigns")
+}
+
+model SocialAd {
+  id                String   @id @default(cuid())
+  campaignId        String
+  name              String
+  adType            String   // Image, Video, Carousel, Collection, Lead Form
+  platform          String
+  adGroupId         String?
+  adSetId           String?
+  status            String   @default("Draft") // Draft, Active, Paused, Archived
+  budget            Float
+  bidAmount         Float?
+  bidStrategy       String?  // CPC, CPM, CPA, ROAS
+  targeting         String?  // JSON targeting criteria
+  creativeAssets    String?  // JSON creative assets
+  destinationUrl    String?
+  trackingParams    String?  // JSON tracking parameters
+  accountId         String?
+  postId            String?
+  metrics           String?  // JSON ad performance metrics
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  campaign          SocialCampaign @relation(fields: [campaignId], references: [id])
+  account           SocialAccount? @relation(fields: [accountId], references: [id])
+  post              SocialPost? @relation(fields: [postId], references: [id])
+  
+  @@map("social_ads")
+}
+
+model SocialMetric {
+  id                String   @id @default(cuid())
+  accountId         String
+  postId            String?
+  metricDate        DateTime
+  platform          String
+  impressions       Int      @default(0)
+  reach             Int      @default(0)
+  engagement        Int      @default(0)
+  likes             Int      @default(0)
+  comments          Int      @default(0)
+  shares            Int      @default(0)
+  clicks            Int      @default(0)
+  saves             Int      @default(0)
+  videoViews        Int      @default(0)
+  videoWatchTime    Int      @default(0)
+  reachRate         Float    @default(0)
+  engagementRate    Float    @default(0)
+  clickThroughRate  Float    @default(0)
+  conversionRate    Float    @default(0)
+  costPerClick      Float    @default(0)
+  costPerImpression Float    @default(0)
+  spend             Float    @default(0)
+  revenue           Float    @default(0)
+  roi               Float    @default(0)
+  sentiment         String?  // Positive, Negative, Neutral
+  demographics      String?  // JSON demographic data
+  locationData      String?  // JSON location data
+  customMetrics     String?  // JSON custom metrics
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  account           SocialAccount @relation(fields: [accountId], references: [id])
+  post              SocialPost? @relation(fields: [postId], references: [id])
+  
+  @@map("social_metrics")
+}
+
+model SocialComment {
+  id                String   @id @default(cuid())
+  postId            String
+  platformCommentId String
+  platform          String
+  content           String
+  authorName        String
+  authorUsername    String?
+  authorProfileImage String?
+  sentiment         String?  // Positive, Negative, Neutral
+  isVerified        Boolean  @default(false)
+  isReply           Boolean  @default(false)
+  parentId          String?  // For reply threads
+  status            String   @default("Active") // Active, Hidden, Deleted, Flagged
+  response          String?
+  respondedAt       DateTime?
+  respondedBy       String?
+  assignedTo        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  post              SocialPost @relation(fields: [postId], references: [id])
+  
+  @@map("social_comments")
+}
+
+model SocialInteraction {
+  id                String   @id @default(cuid())
+  postId            String
+  platform          String
+  interactionType   String   // Like, Comment, Share, Save, Click, View
+  userId            String?
+  userName          String?
+  userProfileImage  String?
+  timestamp         DateTime
+  metadata          String?  // JSON additional metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  post              SocialPost @relation(fields: [postId], references: [id])
+  
+  @@map("social_interactions")
+}
+
+model SocialListeningTopic {
+  id                String   @id @default(cuid())
+  name              String
+  keywords          String   // JSON array of keywords and phrases
+  hashtags          String?  // JSON array of hashtags
+  mentions          String?  // JSON array of @mentions
+  platforms         String   // JSON array of platforms to monitor
+  languages         String?  // JSON array of languages
+  locations         String?  // JSON array of locations
+  sentimentFilter   String?  // All, Positive, Negative, Neutral
+  isActive          Boolean  @default(true)
+  alertThreshold    Int?     // Threshold for alerts
+  alertEmail        String?
+  alertWebhook      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  socialMentions    SocialMention[]
+  
+  @@map("social_listening_topics")
+}
+
+model SocialMention {
+  id                String   @id @default(cuid())
+  topicId           String
+  platform          String
+  mentionId         String   @unique
+  content           String
+  authorName        String
+  authorUsername    String?
+  authorProfileImage String?
+  authorFollowers   Int?
+  sentiment         String?  // Positive, Negative, Neutral
+  influenceScore    Float    @default(0)
+  isVerified        Boolean  @default(false)
+  location          String?
+  language          String?
+  mentionType       String   // Post, Comment, Reply, Retweet, Share
+  url               String?
+  engagement        Int      @default(0)
+  reach             Int      @default(0)
+  isProcessed      Boolean  @default(false)
+  isFlagged         Boolean  @default(false)
+  flagReason        String?
+  assignedTo        String?
+  response          String?
+  respondedAt       DateTime?
+  respondedBy       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  topic             SocialListeningTopic @relation(fields: [topicId], references: [id])
+  
+  @@map("social_mentions")
+}
+
+model SocialInfluencer {
+  id                String   @id @default(cuid())
+  name              String
+  username          String
+  platform          String
+  profileImage      String?
+  bio               String?
+  website           String?
+  email             String?
+  phone             String?
+  followerCount     Int      @default(0)
+  followingCount    Int      @default(0)
+  engagementRate   Float    @default(0)
+  avgLikes          Int      @default(0)
+  avgComments       Int      @default(0)
+  avgShares         Int      @default(0)
+  influenceScore    Float    @default(0)
+  verified          Boolean  @default(false)
+  categories        String?  // JSON array of categories/niches
+  demographics      String?  // JSON demographic data
+  location          String?
+  language          String?
+  status            String   @default("Prospect") // Prospect, Contacted, Active, Inactive, Blacklisted
+  notes             String?
+  tags              String?  // JSON array of tags
+  contactHistory    String?  // JSON contact history
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  influencerCampaigns InfluencerCampaign[]
+  
+  @@map("social_influencers")
+}
+
+model InfluencerCampaign {
+  id                String   @id @default(cuid())
+  influencerId      String
+  campaignId        String?
+  name              String
+  description       String?
+  startDate         DateTime
+  endDate           DateTime
+  budget            Float
+  actualSpend       Float    @default(0)
+  status            String   @default("Draft") // Draft, Proposed, Active, Completed, Cancelled
+  deliverables      String?  // JSON campaign deliverables
+  requirements      String?  // JSON campaign requirements
+  contentGuidelines String?  // JSON content guidelines
+  trackingParams    String?  // JSON tracking parameters
+  approvalStatus    String   @default("Pending") // Pending, Approved, Rejected
+  approvedBy        String?
+  approvedAt        DateTime?
+  metrics           String?  // JSON campaign metrics
+  roi               Float    @default(0)
+  paymentStatus     String   @default("Pending") // Pending, Paid, Partial, Overdue
+  paymentMethod     String?
+  invoiceId         String?
+  notes             String?
+  createdBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  influencer        SocialInfluencer @relation(fields: [influencerId], references: [id])
+  campaign          SocialCampaign? @relation(fields: [campaignId], references: [id])
+  
+  @@map("influencer_campaigns")
+}
+
+model SocialContentLibrary {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  contentType       String   // Image, Video, Document, Audio, Template
+  fileUrl           String
+  fileName          String
+  fileSize          Int?
+  mimeType          String?
+  thumbnailUrl      String?
+  tags              String?  // JSON array of tags
+  category          String?
+  platform          String?
+  usageRights       String?  // JSON usage rights information
+  expirationDate    DateTime?
+  isApproved        Boolean  @default(false)
+  approvedBy        String?
+  approvedAt        DateTime?
+  usageCount        Int      @default(0)
+  lastUsedAt        DateTime?
+  createdBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("social_content_library")
+}
+
+model SocialWorkflow {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  workflowType      String   // Content Approval, Response Template, Crisis Management
+  status            String   @default("Active") // Active, Inactive, Draft
+  triggerConditions String?  // JSON trigger conditions
+  steps             String   // JSON workflow steps
+  approvers         String?  // JSON approvers and their roles
+  sla               String?  // JSON SLA definitions
+  notifications     String?  // JSON notification settings
+  isActive          Boolean  @default(true)
+  createdBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("social_workflows")
+}
+
+// Advanced Analytics & Data Science Module Extensions
+model DataSource {
+  id                String   @id @default(cuid())
+  name              String
+  type              String   // database, api, file, external
+  connectionString String?  // For database connections
+  endpoint          String?  // For API connections
+  filePath          String?  // For file connections
+  description       String?
+  schema            String?  // JSON schema definition
+  isActive          Boolean  @default(true)
+  lastSyncedAt      DateTime?
+  syncFrequency     String   @default("manual") // manual, hourly, daily, weekly
+  createdBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mlModels          MLModel[]
+  dataAnalyses      DataAnalysis[]
+  
+  @@map("data_sources")
+}
+
+model DataAnalysis {
+  id                String   @id @default(cuid())
+  title             String
+  type              String   // clustering, association, forecasting, regression, statistical
+  description       String?
+  status            String   @default("processing") // processing, completed, failed
+  parameters        String?  // JSON analysis parameters
+  results           String?  // JSON analysis results
+  insights          String?  // JSON generated insights
+  dataSourceIds     String?  // JSON array of data source IDs
+  createdBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  dataSources       DataSource[]
+  analysisInsights  AnalysisInsight[]
+  analyticsReports  AnalyticsReport[]
+  
+  @@map("data_analyses")
+}
+
+model Prediction {
+  id                String   @id @default(cuid())
+  modelId           String
+  inputData         String   // JSON input data
+  outputData        String   // JSON output data
+  confidence        Float?
+  predictionDate    DateTime @default(now())
+  isCorrect         Boolean?
+  actualValue       String?  // For model evaluation
+  metadata          String?  // JSON additional metadata
+  createdAt         DateTime @default(now())
+
+  // Relations
+  model             MLModel @relation(fields: [modelId], references: [id])
+  
+  @@map("predictions")
+}
+
+model AnalysisInsight {
+  id                String   @id @default(cuid())
+  analysisId        String
+  title             String
+  description       String
+  type              String   // statistical, pattern, anomaly, trend
+  confidence        Float
+  data              String?  // JSON supporting data
+  recommendations   String?  // JSON recommendations
+  impact            String?  // business impact assessment
+  createdAt         DateTime @default(now())
+
+  // Relations
+  analysis          DataAnalysis @relation(fields: [analysisId], references: [id])
+  
+  @@map("analysis_insights")
+}
+
+model AnalyticsReport {
+  id                String   @id @default(cuid())
+  name              String
+  type              String   // executive_summary, detailed_analysis, technical_report
+  description       String?
+  format            String   // pdf, html, excel, json
+  status            String   @default("generating") // generating, completed, failed
+  content           String?  // JSON report content
+  size              Float?   // Size in MB
+  downloadUrl       String?
+  generatedBy       String?
+  generatedAt       DateTime @default(now())
+  expiresAt         DateTime?
+  
+  // Relations
+  relatedModels     MLModel[]
+  relatedAnalyses   DataAnalysis[]
+  
+  @@map("analytics_reports")
+}
+
+// Governance, Risk & Compliance (GRC) Module Extensions
+model GRCRisk {
+  id                String   @id @default(cuid())
+  title             String
+  category          String   // Operational, Financial, Strategic, Compliance
+  description       String?
+  riskLevel         String   // Low, Medium, High, Critical
+  status            String   @default("Open") // Open, Monitoring, Mitigated, Closed
+  probability       Int      @default(5) // 1-10 scale
+  impact            Int      @default(5) // 1-10 scale
+  ownerId           String
+  dueDate           DateTime?
+  mitigationStrategy String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  owner             User @relation(fields: [ownerId], references: [id])
+  mitigations       GRCRiskMitigation[]
+  assessments      GRCRiskAssessment[]
+  
+  @@map("grc_risks")
+}
+
+model GRCRiskMitigation {
+  id                String   @id @default(cuid())
+  riskId            String
+  title             String
+  description       String
+  assignedTo        String?
+  dueDate           DateTime?
+  status            String   @default("Planned") // Planned, In Progress, Completed, Overdue
+  effectiveness      String?  // Low, Medium, High
+  cost              Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  risk              GRCRisk @relation(fields: [riskId], references: [id])
+  assignedToUser    User? @relation(fields: [assignedTo], references: [id])
+  
+  @@map("grc_risk_mitigations")
+}
+
+model GRCRiskAssessment {
+  id                String   @id @default(cuid())
+  riskId            String
+  assessedBy        String
+  inherentRisk      Int      // 1-100 scale
+  residualRisk      Int      // 1-100 scale
+  assessmentDate   DateTime @default(now())
+  notes             String?
+  recommendations   String?  // JSON recommendations
+  
+  // Relations
+  risk              GRCRisk @relation(fields: [riskId], references: [id])
+  assessedByUser    User @relation(fields: [assessedBy], references: [id])
+  
+  @@map("grc_risk_assessments")
+}
+
+model GRCPolicy {
+  id                String   @id @default(cuid())
+  title             String
+  category          String   // Security, Compliance, Operations, HR, etc.
+  description       String?
+  content           String   // Full policy content
+  version           String   @default("1.0")
+  status            String   @default("Draft") // Draft, Active, Archived, Under Review
+  ownerId           String
+  distributionScope String?  // All Employees, Management, Specific Departments
+  reviewFrequency   String   @default("annual") // annual, semi-annual, quarterly
+  lastReviewed      DateTime @default(now())
+  nextReview        DateTime
+  approvedAt        DateTime?
+  approvedBy        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  owner             User @relation(fields: [ownerId], references: [id])
+  approvals         GRCPolicyApproval[]
+  distributions      GRCPolicyDistribution[]
+  
+  @@map("grc_policies")
+}
+
+model GRCPolicyApproval {
+  id                String   @id @default(cuid())
+  policyId          String
+  approvedBy        String
+  approvalDate      DateTime?
+  status            String   @default("Pending") // Pending, Approved, Rejected
+  comments          String?
+  version           String
+  
+  // Relations
+  policy            GRCPolicy @relation(fields: [policyId], references: [id])
+  approvedByUser    User @relation(fields: [approvedBy], references: [id])
+  
+  @@map("grc_policy_approvals")
+}
+
+model GRCPolicyDistribution {
+  id                String   @id @default(cuid())
+  policyId          String
+  userId            String?
+  distributedAt     DateTime @default(now())
+  acknowledgedAt    DateTime?
+  status            String   @default("Sent") // Sent, Acknowledged, Read
+  
+  // Relations
+  policy            GRCPolicy @relation(fields: [policyId], references: [id])
+  user              User? @relation(fields: [userId], references: [id])
+  
+  @@map("grc_policy_distributions")
+}
+
+model GRCAudit {
+  id                String   @id @default(cuid())
+  title             String
+  type              String   // Internal, External
+  scope             String
+  description       String?
+  leadAuditorId     String
+  startDate         DateTime
+  endDate           DateTime
+  status            String   @default("Scheduled") // Scheduled, In Progress, Completed, Cancelled
+  budget            Float?
+  actualCost        Float?
+  findings          Int      @default(0)
+  recommendations   Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  leadAuditor       User @relation(fields: [leadAuditorId], references: [id])
+  teamMembers       GRCAuditTeamMember[]
+  auditFindings     GRCAuditFinding[]
+  
+  @@map("grc_audits")
+}
+
+model GRCAuditTeamMember {
+  id                String   @id @default(cuid())
+  auditId           String
+  userId            String
+  role              String   @default("Team Member") // Lead, Team Member, Observer
+  hoursAllocated    Int?
+  hoursActual       Int?
+  
+  // Relations
+  audit             GRCAudit @relation(fields: [auditId], references: [id])
+  user              User @relation(fields: [userId], references: [id])
+  
+  @@map("grc_audit_team_members")
+}
+
+model GRCAuditFinding {
+  id                String   @id @default(cuid())
+  auditId           String
+  title             String
+  description       String
+  severity          String   // Low, Medium, High, Critical
+  category          String   // Control Deficiency, Process Issue, etc.
+  assignedTo        String?
+  dueDate           DateTime?
+  status            String   @default("Open") // Open, In Progress, Resolved, Closed
+  recommendation    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  audit             GRCAudit @relation(fields: [auditId], references: [id])
+  assignedToUser    User? @relation(fields: [assignedTo], references: [id])
+  
+  @@map("grc_audit_findings")
+}
+
+model GRCCommittee {
+  id                String   @id @default(cuid())
+  name              String
+  type              String   // Board, Executive, Operational, Advisory
+  description       String?
+  chairpersonId     String
+  meetingFrequency  String   // Weekly, Monthly, Quarterly, Annually
+  responsibilities  String?  // JSON responsibilities
+  charter           String?  // Committee charter document
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  chairperson       User @relation(fields: [chairpersonId], references: [id])
+  members           GRCCommitteeMember[]
+  meetings          GRCCommitteeMeeting[]
+  
+  @@map("grc_committees")
+}
+
+model GRCCommitteeMember {
+  id                String   @id @default(cuid())
+  committeeId       String
+  userId            String
+  role              String   @default("Member") // Chairperson, Member, Secretary
+  joinedAt          DateTime @default(now())
+  leftAt            DateTime?
+  
+  // Relations
+  committee         GRCCommittee @relation(fields: [committeeId], references: [id])
+  user              User @relation(fields: [userId], references: [id])
+  
+  @@map("grc_committee_members")
+}
+
+model GRCCommitteeMeeting {
+  id                String   @id @default(cuid())
+  committeeId       String
+  title             String
+  scheduledDate     DateTime
+  actualDate        DateTime?
+  duration          Int?     // in minutes
+  location          String?
+  agenda            String?  // JSON agenda
+  minutes           String?  // JSON meeting minutes
+  status            String   @default("Scheduled") // Scheduled, In Progress, Completed, Cancelled
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  committee         GRCCommittee @relation(fields: [committeeId], references: [id])
+  attendees         GRCCommitteeMeetingAttendee[]
+  
+  @@map("grc_committee_meetings")
+}
+
+model GRCCommitteeMeetingAttendee {
+  id                String   @id @default(cuid())
+  meetingId         String
+  userId            String
+  attendanceStatus  String   @default("Invited") // Invited, Attended, Absent, Excused
+  role              String?  // Presenter, Note-taker, etc.
+  
+  // Relations
+  meeting           GRCCommitteeMeeting @relation(fields: [meetingId], references: [id])
+  user              User @relation(fields: [userId], references: [id])
+  
+  @@map("grc_committee_meeting_attendees")
+}
+
+model GRCComplianceRequirement {
+  id                String   @id @default(cuid())
+  name              String
+  regulation        String   // GDPR, SOX, ISO 27001, etc.
+  category          String   // Data Protection, Financial Reporting, etc.
+  description       String
+  effectiveDate     DateTime
+  reviewFrequency   String   @default("annual")
+  owner             String?
+  status            String   @default("Active") // Active, Deprecated, Superseded
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  assessments       GRCComplianceAssessment[]
+  
+  @@map("grc_compliance_requirements")
+}
+
+model GRCComplianceAssessment {
+  id                String   @id @default(cuid())
+  requirementId     String
+  assessedBy        String
+  assessmentDate    DateTime @default(now())
+  complianceLevel   Float    // 0-100 percentage
+  status            String   @default("Not Assessed") // Not Assessed, Compliant, Non-Compliant, Partially Compliant
+  findings          String?  // JSON findings
+  recommendations   String?  // JSON recommendations
+  evidence          String?  // JSON evidence references
+  nextAssessment    DateTime?
+  
+  // Relations
+  requirement       GRCComplianceRequirement @relation(fields: [requirementId], references: [id])
+  assessedByUser    User @relation(fields: [assessedBy], references: [id])
+  
+  @@map("grc_compliance_assessments")
+}
+
+// Research & Development Management Models
+model RDProject {
+  id                String   @id @default(cuid())
+  name              String
+  description       String
+  category          String   // artificial-intelligence, blockchain, iot, biotech, clean-tech, etc.
+  status            String   @default("planning") // planning, active, completed, cancelled, on-hold
+  priority          String   @default("medium") // low, medium, high, critical
+  budget            Float
+  spent             Float    @default(0)
+  startDate         DateTime
+  endDate           DateTime
+  teamSize          Int
+  progress          Float    @default(0) // 0-100 percentage
+  roi               Float?   // Return on investment multiplier
+  objectives        String?  // JSON array of project objectives
+  deliverables      String?  // JSON array of expected deliverables
+  risks             String?  // JSON array of project risks
+  successCriteria   String?  // JSON array of success criteria
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  createdBy         User? @relation(fields: [createdById], references: [id])
+  milestones        RDMilestone[]
+  budgetAllocations RDBudgetAllocation[]
+  teamMembers       RDTeamMember[]
+  intellectualProperty RDIntellectualProperty[]
+  publications      RDPublication[]
+  
+  @@map("rd_projects")
+}
+
+model RDMilestone {
+  id                String   @id @default(cuid())
+  projectId         String
+  name              String
+  description       String?
+  targetDate        DateTime
+  actualDate        DateTime?
+  status            String   @default("pending") // pending, in-progress, completed, delayed
+  dependencies      String?  // JSON array of dependent milestone IDs
+  deliverables      String?  // JSON array of milestone deliverables
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  project           RDProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("rd_milestones")
+}
+
+model RDBudgetAllocation {
+  id                String   @id @default(cuid())
+  projectId         String
+  category          String   // personnel, equipment, materials, travel, overhead, etc.
+  allocatedAmount   Float
+  spentAmount       Float    @default(0)
+  fiscalYear        String?
+  quarter           String?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  project           RDProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("rd_budget_allocations")
+}
+
+model RDTeam {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  leadId            String
+  specializations   String   // JSON array of specializations
+  budget            Float
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  lead              User @relation(fields: [leadId], references: [id])
+  members           RDTeamMember[]
+  
+  @@map("rd_teams")
+}
+
+model RDTeamMember {
+  id                String   @id @default(cuid())
+  teamId            String
+  userId            String
+  projectId         String?
+  role              String   // lead, researcher, developer, analyst, etc.
+  allocation        Float    @default(100) // percentage allocation to team
+  startDate         DateTime
+  endDate           DateTime?
+  skills            String?  // JSON array of skills
+  responsibilities  String?  // JSON array of responsibilities
+  performanceRating Float?   // 1-5 rating
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  team              RDTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user              User @relation(fields: [userId], references: [id])
+  project           RDProject? @relation(fields: [projectId], references: [id])
+  
+  @@map("rd_team_members")
+}
+
+model RDIntellectualProperty {
+  id                String   @id @default(cuid())
+  title             String
+  type              String   // patent, trademark, copyright, trade-secret
+  status            String   @default("pending") // pending, approved, rejected, expired
+  filingDate        DateTime?
+  approvalDate      DateTime?
+  expiryDate        DateTime?
+  description       String
+  inventors         String   // JSON array of inventor names
+  projectId         String?
+  value             Float?   // Estimated monetary value
+  jurisdiction      String?  // Country/region of registration
+  registrationNumber String?
+  category          String?  // IP category/subcategory
+  legalStatus       String?  // Current legal status
+  maintenanceFees   String?  // JSON maintenance fee schedule
+  notes             String?
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  project           RDProject? @relation(fields: [projectId], references: [id])
+  createdBy         User? @relation(fields: [createdById], references: [id])
+  
+  @@map("rd_intellectual_property")
+}
+
+model RDInnovation {
+  id                String   @id @default(cuid())
+  name              String
+  description       String
+  stage             String   @default("idea") // idea, research, development, prototype, testing, deployment
+  category          String   // technology, process, product, service, business-model
+  potentialValue    Float    // Estimated potential value
+  probability       Float    @default(0) // 0-100 success probability
+  timeline          String?  // Estimated timeline to completion
+  investmentNeeded  Float?   // Required investment
+  teamMembers       String   // JSON array of team member names/IDs
+  dependencies      String   // JSON array of dependencies
+  risks             String?  // JSON array of risks
+  opportunities    String?  // JSON array of opportunities
+  status            String   @default("active") // active, paused, cancelled, completed
+  priority          String   @default("medium") // low, medium, high, critical
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  createdBy         User? @relation(fields: [createdById], references: [id])
+  
+  @@map("rd_innovations")
+}
+
+model RDPublication {
+  id                String   @id @default(cuid())
+  title             String
+  type              String   // journal-article, conference-paper, book-chapter, patent, thesis, etc.
+  abstract          String?
+  authors           String   // JSON array of authors
+  publicationDate   DateTime?
+  journal           String?
+  conference        String?
+  publisher         String?
+  doi               String?
+  isbn              String?
+  projectId         String?
+  citations         Int      @default(0)
+  impactFactor      Float?
+  status            String   @default("draft") // draft, submitted, published, rejected
+  peerReviewStatus  String?  // pending, under-review, accepted, rejected
+  keywords          String?  // JSON array of keywords
+  fileUrl           String?  // URL to publication file
+  notes             String?
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  project           RDProject? @relation(fields: [projectId], references: [id])
+  createdBy         User? @relation(fields: [createdById], references: [id])
+  
+  @@map("rd_publications")
+}
+
+model RDCollaboration {
+  id                String   @id @default(cuid())
+  name              String
+  type              String   // academic, industry, government, non-profit
+  description       String
+  partner           String   // Partner organization name
+  startDate         DateTime
+  endDate           DateTime?
+  status            String   @default("active") // active, completed, cancelled, suspended
+  scope             String?  // Collaboration scope and objectives
+  budget            Float?
+  fundingSource     String?
+  agreementType     String?  // MOU, contract, grant, etc.
+  agreementDocument String?  // URL to agreement document
+  deliverables      String?  // JSON array of expected deliverables
+  milestones        String?  // JSON array of collaboration milestones
+  teamMembers       String   // JSON array of team members from both organizations
+  communicationPlan String? // JSON communication plan
+  riskManagement    String? // JSON risk management plan
+  successMetrics    String? // JSON success metrics
+  notes             String?
+  createdById       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  createdBy         User? @relation(fields: [createdById], references: [id])
+  
+  @@map("rd_collaborations")
+}
