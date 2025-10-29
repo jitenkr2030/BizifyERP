@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar, Share2, BarChart3, Users, TrendingUp, Search, Plus, Filter, Download, MessageSquare, Heart, Eye, Click, DollarSign } from 'lucide-react';
+import { Calendar, Share2, BarChart3, Users, TrendingUp, Search, Plus, Filter, Download, MessageSquare, Heart, Eye, MousePointer, DollarSign } from 'lucide-react';
 
 interface SocialAccount {
   id: string;
@@ -683,7 +683,7 @@ export default function SocialMediaPage() {
                         <span>{post.socialMetrics?.[0]?.impressions || 0}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Click className="h-4 w-4 text-purple-500" />
+                        <MousePointer className="h-4 w-4 text-purple-500" />
                         <span>{post.socialMetrics?.[0]?.clicks || 0}</span>
                       </div>
                     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,7 +27,8 @@ import {
   Clock,
   AlertTriangle,
   TrendingUp,
-  Activity
+  Activity,
+  RefreshCw
 } from "lucide-react"
 
 interface Lead {
@@ -230,10 +231,11 @@ const mockActivities: Activity[] = [
 ]
 
 export default function CRMPage() {
-  const [leads, setLeads] = useState<Lead[]>(mockLeads)
-  const [opportunities, setOpportunities] = useState<Opportunity[]>(mockOpportunities)
-  const [contacts, setContacts] = useState<Contact[]>(mockContacts)
-  const [activities, setActivities] = useState<Activity[]>(mockActivities)
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [selectedPriority, setSelectedPriority] = useState('all')
@@ -241,6 +243,52 @@ export default function CRMPage() {
   const [isAddOpportunityOpen, setIsAddOpportunityOpen] = useState(false)
   const [isAddContactOpen, setIsAddContactOpen] = useState(false)
   const [isAddActivityOpen, setIsAddActivityOpen] = useState(false)
+
+  useEffect(() => {
+    fetchCRMData()
+  }, [])
+
+  const fetchCRMData = async () => {
+    setLoading(true)
+    try {
+      // Fetch leads
+      const leadsResponse = await fetch('/api/crm/leads')
+      if (leadsResponse.ok) {
+        const leadsData = await leadsResponse.json()
+        setLeads(leadsData.leads || [])
+      }
+
+      // Fetch opportunities
+      const opportunitiesResponse = await fetch('/api/crm/opportunities')
+      if (opportunitiesResponse.ok) {
+        const opportunitiesData = await opportunitiesResponse.json()
+        setOpportunities(opportunitiesData.opportunities || [])
+      }
+
+      // Fetch contacts
+      const contactsResponse = await fetch('/api/crm/contacts')
+      if (contactsResponse.ok) {
+        const contactsData = await contactsResponse.json()
+        setContacts(contactsData.contacts || [])
+      }
+
+      // Fetch activities
+      const activitiesResponse = await fetch('/api/crm/activities')
+      if (activitiesResponse.ok) {
+        const activitiesData = await activitiesResponse.json()
+        setActivities(activitiesData.activities || [])
+      }
+    } catch (error) {
+      console.error('Error fetching CRM data:', error)
+      // Fallback to mock data if API fails
+      setLeads(mockLeads)
+      setOpportunities(mockOpportunities)
+      setContacts(mockContacts)
+      setActivities(mockActivities)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -313,6 +361,18 @@ export default function CRMPage() {
       default:
         return <Activity className="w-4 h-4" />
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center h-64">
+            <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

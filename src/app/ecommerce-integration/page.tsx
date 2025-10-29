@@ -13,7 +13,7 @@ import {
   Users, 
   DollarSign, 
   Truck, 
-  Sync,
+  RotateCcw,
   Plus,
   Edit,
   Trash2,
@@ -452,7 +452,7 @@ export default function EcommerceIntegration() {
                 Add Channel
               </Button>
               <Button variant="outline" className="flex items-center gap-2">
-                <Sync className="h-4 w-4" />
+                <RotateCcw className="h-4 w-4" />
                 Sync All
               </Button>
             </div>
@@ -580,7 +580,7 @@ export default function EcommerceIntegration() {
                           Configure
                         </Button>
                         <Button variant="outline" size="sm">
-                          <Sync className="h-4 w-4" />
+                          <RotateCcw className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="sm">
                           <Eye className="h-4 w-4" />
@@ -723,7 +723,7 @@ export default function EcommerceIntegration() {
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon">
-                              <Sync className="h-4 w-4" />
+                              <RotateCcw className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -1027,7 +1027,7 @@ export default function EcommerceIntegration() {
                     <CardDescription>Monitor data synchronization across channels</CardDescription>
                   </div>
                   <Button>
-                    <Sync className="h-4 w-4 mr-2" />
+                    <RotateCcw className="h-4 w-4 mr-2" />
                     Sync All Channels
                   </Button>
                 </div>
@@ -1038,7 +1038,7 @@ export default function EcommerceIntegration() {
                     <div key={log.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="p-2 bg-slate-100 rounded-lg">
-                          <Sync className="h-5 w-5 text-slate-600" />
+                          <RotateCcw className="h-5 w-5 text-slate-600" />
                         </div>
                         <div>
                           <h3 className="font-semibold">{log.type}</h3>

@@ -1,182 +1,151 @@
+'use client'
+
 import Link from 'next/link'
-import { Building2, Mail, Phone, MapPin, Facebook, Twitter, Linkedin, Github } from "lucide-react"
+import { Building2, Mail, Phone, MapPin, Github, Twitter, Linkedin } from "lucide-react"
 
 export default function Footer() {
-  const footerLinks = {
-    product: [
-      { name: 'Features', href: '#features' },
-      { name: 'Pricing', href: '#pricing' },
-      { name: 'Modules', href: '#modules' },
-      { name: 'Enterprise', href: '#enterprise' },
-      { name: 'API Documentation', href: '/docs' },
-    ],
-    company: [
-      { name: 'About Us', href: '#about' },
-      { name: 'Careers', href: '#careers' },
-      { name: 'Blog', href: '/blog' },
-      { name: 'Press', href: '#press' },
-      { name: 'Partners', href: '#partners' },
-    ],
-    support: [
-      { name: 'Help Center', href: '/help' },
-      { name: 'Documentation', href: '/docs' },
-      { name: 'Community', href: '/community' },
-      { name: 'Status', href: '/status' },
-      { name: 'Contact Support', href: '#contact' },
-    ],
-    legal: [
-      { name: 'Privacy Policy', href: '/privacy' },
-      { name: 'Terms of Service', href: '/terms' },
-      { name: 'Cookie Policy', href: '/cookies' },
-      { name: 'GDPR', href: '/gdpr' },
-      { name: 'Security', href: '/security' },
-    ]
-  }
-
-  const socialLinks = [
-    { name: 'Facebook', icon: Facebook, href: 'https://facebook.com/bizifyerp' },
-    { name: 'Twitter', icon: Twitter, href: 'https://twitter.com/bizifyerp' },
-    { name: 'LinkedIn', icon: Linkedin, href: 'https://linkedin.com/company/bizifyerp' },
-    { name: 'GitHub', icon: Github, href: 'https://github.com/bizifyerp' },
-  ]
-
   return (
-    <footer className="bg-muted/50 border-t">
-      {/* Main Footer Content */}
+    <footer className="bg-gray-900 text-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8">
-          {/* Company Info */}
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {/* Company */}
+          <div>
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
                 <Building2 className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                BizifyERP
-              </span>
+              <span className="text-xl font-bold">BizifyERP</span>
             </div>
-            <p className="text-muted-foreground mb-6 max-w-sm">
-              Complete business management platform with 30 integrated modules. 
-              Transform your business operations with our comprehensive ERP solution.
+            <p className="text-gray-400 mb-4">
+              The comprehensive ERP system that grows with your business. 30+ integrated modules covering every aspect of modern enterprise operations.
             </p>
-            
-            {/* Contact Info */}
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <div className="flex items-center space-x-2">
-                <Mail className="w-4 h-4" />
-                <span>support@bizifyerp.com</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Phone className="w-4 h-4" />
-                <span>+1 (555) 123-4567</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <MapPin className="w-4 h-4" />
-                <span>San Francisco, CA</span>
-              </div>
+            <div className="flex space-x-4">
+              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+                <Github className="w-5 h-5" />
+              </Link>
+              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+                <Twitter className="w-5 h-5" />
+              </Link>
+              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+                <Linkedin className="w-5 h-5" />
+              </Link>
             </div>
+          </div>
 
-            {/* Social Links */}
-            <div className="flex space-x-4 mt-6">
-              {socialLinks.map((social) => (
-                <Link
-                  key={social.name}
-                  href={social.href}
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                  aria-label={social.name}
-                >
-                  <social.icon className="w-5 h-5" />
+          {/* Product */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Product</h3>
+            <ul className="space-y-2">
+              <li>
+                <Link href="/product#features" className="text-gray-400 hover:text-white transition-colors">
+                  Features
                 </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Product Links */}
-          <div>
-            <h3 className="font-semibold mb-4">Product</h3>
-            <ul className="space-y-2">
-              {footerLinks.product.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
+              </li>
+              <li>
+                <Link href="/product#pricing" className="text-gray-400 hover:text-white transition-colors">
+                  Pricing
+                </Link>
+              </li>
+              <li>
+                <Link href="/product#modules" className="text-gray-400 hover:text-white transition-colors">
+                  Modules
+                </Link>
+              </li>
+              <li>
+                <Link href="/product#enterprise" className="text-gray-400 hover:text-white transition-colors">
+                  Enterprise
+                </Link>
+              </li>
+              <li>
+                <Link href="/product#docs" className="text-gray-400 hover:text-white transition-colors">
+                  API Documentation
+                </Link>
+              </li>
             </ul>
           </div>
 
-          {/* Company Links */}
+          {/* Company */}
           <div>
-            <h3 className="font-semibold mb-4">Company</h3>
+            <h3 className="text-lg font-semibold mb-4">Company</h3>
             <ul className="space-y-2">
-              {footerLinks.company.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link href="/about" className="text-gray-400 hover:text-white transition-colors">
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link href="/careers" className="text-gray-400 hover:text-white transition-colors">
+                  Careers
+                </Link>
+              </li>
+              <li>
+                <Link href="/blog" className="text-gray-400 hover:text-white transition-colors">
+                  Blog
+                </Link>
+              </li>
+              <li>
+                <Link href="/press" className="text-gray-400 hover:text-white transition-colors">
+                  Press
+                </Link>
+              </li>
+              <li>
+                <Link href="/partners" className="text-gray-400 hover:text-white transition-colors">
+                  Partners
+                </Link>
+              </li>
             </ul>
           </div>
 
-          {/* Support Links */}
+          {/* Support */}
           <div>
-            <h3 className="font-semibold mb-4">Support</h3>
+            <h3 className="text-lg font-semibold mb-4">Support</h3>
             <ul className="space-y-2">
-              {footerLinks.support.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Legal Links */}
-          <div>
-            <h3 className="font-semibold mb-4">Legal</h3>
-            <ul className="space-y-2">
-              {footerLinks.legal.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link href="/help" className="text-gray-400 hover:text-white transition-colors">
+                  Help Center
+                </Link>
+              </li>
+              <li>
+                <Link href="/docs" className="text-gray-400 hover:text-white transition-colors">
+                  Documentation
+                </Link>
+              </li>
+              <li>
+                <Link href="/community" className="text-gray-400 hover:text-white transition-colors">
+                  Community
+                </Link>
+              </li>
+              <li>
+                <Link href="/status" className="text-gray-400 hover:text-white transition-colors">
+                  Status
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact" className="text-gray-400 hover:text-white transition-colors">
+                  Contact Support
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
-      </div>
 
-      {/* Bottom Bar */}
-      <div className="border-t bg-background">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-            <div className="text-sm text-muted-foreground">
-              © 2025 BizifyERP. All rights reserved.
+        <div className="border-t border-gray-800 mt-12 pt-8">
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div className="text-gray-400 text-sm mb-4 md:mb-0">
+              © 2024 BizifyERP. All rights reserved.
             </div>
-            <div className="flex items-center space-x-6 text-sm text-muted-foreground">
-              <Link href="/privacy" className="hover:text-primary transition-colors">
+            <div className="flex space-x-6 text-sm">
+              <Link href="/privacy" className="text-gray-400 hover:text-white transition-colors">
                 Privacy Policy
               </Link>
-              <Link href="/terms" className="hover:text-primary transition-colors">
+              <Link href="/terms" className="text-gray-400 hover:text-white transition-colors">
                 Terms of Service
               </Link>
-              <Link href="/cookies" className="hover:text-primary transition-colors">
-                Cookie Settings
+              <Link href="/gdpr" className="text-gray-400 hover:text-white transition-colors">
+                GDPR
+              </Link>
+              <Link href="/cookies" className="text-gray-400 hover:text-white transition-colors">
+                Cookie Policy
               </Link>
             </div>
           </div>

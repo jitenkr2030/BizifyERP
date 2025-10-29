@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -30,11 +30,18 @@ export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false)
 
   // Handle scroll effect for header
-  if (typeof window !== 'undefined') {
-    window.addEventListener('scroll', () => {
+  useEffect(() => {
+    const handleScroll = () => {
       setIsScrolled(window.scrollY > 10)
-    })
-  }
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    
+    // Cleanup event listener on component unmount
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, []) // Empty dependency array means this runs once on mount
 
   const navigation = [
     { name: 'Features', href: '#features' },

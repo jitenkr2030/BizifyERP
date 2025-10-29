@@ -12,7 +12,7 @@ import {
   Settings, 
   BarChart3, 
   Shield,
-  Upgrade,
+  ArrowUp,
   Clock,
   CheckCircle,
   AlertTriangle
@@ -228,7 +228,7 @@ export default function SaaSDashboard() {
                   onClick={() => handleUpgrade('2')}
                   className="bg-amber-600 hover:bg-amber-700"
                 >
-                  <Upgrade className="h-4 w-4 mr-2" />
+                  <ArrowUp className="h-4 w-4 mr-2" />
                   Upgrade Now
                 </Button>
               </div>

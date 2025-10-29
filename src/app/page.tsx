@@ -409,8 +409,8 @@ export default function Home() {
             All you need to run your business - A comprehensive ERP system with fully integrated modules
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Button size="lg" className="text-lg px-8 py-3">
-              Start Free Trial
+            <Button size="lg" className="text-lg px-8 py-3" onClick={() => window.location.href = '/product'}>
+              View Product Details
             </Button>
             <Button size="lg" variant="outline" className="text-lg px-8 py-3">
               Schedule Demo
